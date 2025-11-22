@@ -1,0 +1,1 @@
+export default ()=> <div style={{padding:24}}>Docs</div>
