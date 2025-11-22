@@ -1,0 +1,11 @@
+
+{
+  "name": "ssl-generator",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.19.0",
+    "axios": "^1.6.0",
+    "acme-client": "^5.0.0"
+  }
+}
