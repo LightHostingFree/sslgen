@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String?
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Registration {
+  id         Int      @id @default(autoincrement())
+  domain     String   @unique
+  subdomain  String
+  fulldomain String
+  username   String
+  password   String
+  wildcard   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  ownerId    Int?
+  owner      User?    @relation(fields: [ownerId], references: [id])
+}
+
+model Cert {
+  id        Int      @id @default(autoincrement())
+  domain    String
+  certPem   String   @db.Text
+  keyPem    String   @db.Text
+  issuedAt  DateTime @default(now())
+  expiresAt DateTime
+}
