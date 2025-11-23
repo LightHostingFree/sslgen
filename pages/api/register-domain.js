@@ -4,17 +4,29 @@ import { clerkClient } from '@clerk/nextjs/server';
 
 export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).end();
-  const { domain: inputDomain, wildcard } = req.body;
-  if(!inputDomain) return res.status(400).json({ error: 'domain required' });
-  const domain = `${inputDomain}.acme.getfreeweb.site`;
+  const { domain, wildcard } = req.body;
+  if(!domain) return res.status(400).json({ error: 'domain required' });
   const ACMEDNS_BASE = process.env.ACMEDNS_BASE || 'https://acme.getfreeweb.site';
   try{
+    const existing = await prisma.registration.findUnique({ where: { domain } });
+
+    if(existing){
+      const cname = `_acme-challenge.${domain} -> ${existing.fulldomain}`;
+      return res.json({ domain, cname, registration: { subdomain: existing.subdomain, fulldomain: existing.fulldomain } });
+    }
+
     const r = await axios.post(`${ACMEDNS_BASE}/register`, {});
     const reg = r.data;
-    // optional: associate owner via Clerk (if available)
-    let ownerId = null;
-    try{ const session = req.headers['cookie']; /* placeholder - associate after verifying session */ }catch(e){}
-    await prisma.registration.upsert({ where: { domain }, update: { subdomain: reg.subdomain, fulldomain: reg.fulldomain, username: reg.username, password: reg.password, wildcard: !!wildcard }, create: { domain, subdomain: reg.subdomain, fulldomain: reg.fulldomain, username: reg.username, password: reg.password, wildcard: !!wildcard } });
+    await prisma.registration.create({
+      data: {
+        domain,
+        subdomain: reg.subdomain,
+        fulldomain: reg.fulldomain,
+        username: reg.username,
+        password: reg.password,
+        wildcard: !!wildcard
+      }
+    });
     const cname = `_acme-challenge.${domain} -> ${reg.fulldomain}`;
     return res.json({ domain, cname, registration: reg });
   }catch(e){

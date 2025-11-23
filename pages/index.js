@@ -26,12 +26,7 @@ export default function Home(){
         <div>{/* Clerk auth UI */}<SignedIn><UserButton/></SignedIn><SignedOut><SignInButton/></SignedOut></div>
       </div>
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-4'>
-        <div className='col-span-2'>
-          <div className='flex items-center gap-1 p-3 rounded-xl border bg-white'>
-            <input value={domain} onChange={e=>setDomain(e.target.value)} className='flex-1 outline-none' placeholder='example' />
-            <span className='text-gray-400'>.acme.getfreeweb.site</span>
-          </div>
-        </div>
+        <input value={domain} onChange={e=>setDomain(e.target.value)} className='col-span-2 p-3 rounded-xl border' placeholder='mayank.email' />
         <label className='flex items-center gap-2 p-3 bg-gray-50 rounded-xl border'>
           <input type='checkbox' checked={wild} onChange={e=>setWild(e.target.checked)} /> Wildcard
         </label>
