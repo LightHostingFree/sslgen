@@ -64,8 +64,7 @@ export default async function handler(req, res) {
 
       const keyAuth = await client.getChallengeKeyAuthorization(challenge);
 
-      const dnsValue = acme
-        .digest64(keyAuth);
+      const dnsValue = await acme.crypto.sha256(keyAuth);
 
       await axios.post(
         `${ACMEDNS_BASE}/update`,
