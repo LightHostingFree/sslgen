@@ -64,7 +64,10 @@ export default async function handler(req, res) {
 
       const keyAuth = await client.getChallengeKeyAuthorization(challenge);
 
-      const dnsValue = await acme.crypto.sha256(keyAuth);
+      const dnsValue = Buffer.from(await acme.crypto.sha256(keyAuth)).toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
 
       await axios.post(
         `${ACMEDNS_BASE}/update`,
