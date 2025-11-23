@@ -4,8 +4,9 @@ import { clerkClient } from '@clerk/nextjs/server';
 
 export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).end();
-  const { domain, wildcard } = req.body;
-  if(!domain) return res.status(400).json({ error: 'domain required' });
+  const { domain: inputDomain, wildcard } = req.body;
+  if(!inputDomain) return res.status(400).json({ error: 'domain required' });
+  const domain = `${inputDomain}.acme.getfreeweb.site`;
   const ACMEDNS_BASE = process.env.ACMEDNS_BASE || 'https://acme.getfreeweb.site';
   try{
     const r = await axios.post(`${ACMEDNS_BASE}/register`, {});
