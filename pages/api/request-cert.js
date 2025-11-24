@@ -16,9 +16,8 @@ export default async function handler(req, res) {
     process.env.ACMEDNS_BASE || "https://acme.getfreeweb.site";
 
   try {
-    // Check existing
     const existing = await prisma.registration.findUnique({
-      where: { domain }
+      where: { domain },
     });
 
     if (existing) {
@@ -27,12 +26,11 @@ export default async function handler(req, res) {
         cname: `_acme-challenge.${domain} -> ${existing.fulldomain}`,
         registration: {
           subdomain: existing.subdomain,
-          fulldomain: existing.fulldomain
-        }
+          fulldomain: existing.fulldomain,
+        },
       });
     }
 
-    // Register new
     const response = await axios.post(`${ACMEDNS_BASE}/register`, {});
     const reg = response.data;
 
@@ -43,30 +41,18 @@ export default async function handler(req, res) {
         fulldomain: reg.fulldomain,
         username: reg.username,
         password: reg.password,
-        wildcard: Boolean(wildcard)
-      }
+        wildcard: Boolean(wildcard),
+      },
     });
 
     return res.json({
       domain,
       cname: `_acme-challenge.${domain} -> ${reg.fulldomain}`,
-      registration: reg
+      registration: reg,
     });
   } catch (err) {
     return res.status(500).json({
-      error: err?.response?.data || err?.message || "Internal Server Error"
-    });
-  }
-}
-    });
-
-    return res.status(200).json({
-      certificate,
-      privateKey: domainKey,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      error: err.message || "Internal Server Error",
+      error: err?.response?.data || err?.message || "Internal Server Error",
     });
   }
 }
