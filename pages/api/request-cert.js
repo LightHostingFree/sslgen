@@ -1,110 +1,63 @@
 import axios from "axios";
 import prisma from "../../lib/prisma";
-import acme from "acme-client";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const { domain, wildcard } = req.body;
+
+  if (!domain) {
+    return res.status(400).json({ error: "domain required" });
+  }
+
+  const ACMEDNS_BASE =
+    process.env.ACMEDNS_BASE || "https://acme.getfreeweb.site";
+
   try {
-    const { domain, wildcard } = req.body;
-
-    if (!domain) {
-      return res.status(400).json({ error: "Domain is required" });
-    }
-
-    const registration = await prisma.registration.findUnique({
-      where: { domain },
+    // Check existing
+    const existing = await prisma.registration.findUnique({
+      where: { domain }
     });
 
-    if (!registration) {
-      return res.status(400).json({ error: "Domain is not registered" });
-    }
-
-    const ACMEDNS_BASE =
-      process.env.ACMEDNS_BASE || "https://acme.getfreeweb.site";
-
-    const ACME_DIRECTORY =
-      process.env.ACME_DIRECTORY ||
-      "https://acme-staging-v02.api.letsencrypt.org/directory";
-
-    // Keys
-    const accountKey = await acme.openssl.createPrivateKey();
-    const domainKey = await acme.openssl.createPrivateKey();
-
-    // Client
-    const client = new acme.Client({
-      directoryUrl: ACME_DIRECTORY,
-      accountKey,
-    });
-
-    await client.createAccount({
-      termsOfServiceAgreed: true,
-    });
-
-    // Identifiers
-    const identifiers = wildcard
-      ? [
-          { type: "dns", value: domain },
-          { type: "dns", value: `*.${domain}` },
-        ]
-      : [{ type: "dns", value: domain }];
-
-    // Create order
-    const order = await client.createOrder({ identifiers });
-
-    const authzList = await client.getAuthorizations(order);
-
-    for (const authz of authzList) {
-      const challenge = authz.challenges.find((c) => c.type === "dns-01");
-      if (!challenge) {
-        throw new Error("DNS-01 challenge not found");
-      }
-
-      const keyAuth = await client.getChallengeKeyAuthorization(challenge);
-
-      const dnsValue = Buffer.from(await acme.crypto.sha256(keyAuth)).toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-
-      await axios.post(
-        `${ACMEDNS_BASE}/update`,
-        {
-          subdomain: registration.subdomain,
-          txt: dnsValue,
-        },
-        {
-          auth: {
-            username: registration.username,
-            password: registration.password,
-          },
+    if (existing) {
+      return res.json({
+        domain,
+        cname: `_acme-challenge.${domain} -> ${existing.fulldomain}`,
+        registration: {
+          subdomain: existing.subdomain,
+          fulldomain: existing.fulldomain
         }
-      );
-
-      await client.verifyChallenge(authz, challenge);
-      await client.completeChallenge(challenge);
+      });
     }
 
-    await client.waitForValidStatus(order);
+    // Register new
+    const response = await axios.post(`${ACMEDNS_BASE}/register`, {});
+    const reg = response.data;
 
-    const [csr, csrPem] = await acme.openssl.createCSR({
-      commonName: domain,
-      altNames: wildcard ? [domain, `*.${domain}`] : [domain],
-    });
-
-    const certificate = await client.finalizeOrder(order, csr);
-
-    const expiresAt = new Date(Date.now() + 90 * 24 * 3600 * 1000);
-
-    await prisma.cert.create({
+    await prisma.registration.create({
       data: {
         domain,
-        certPem: certificate,
-        keyPem: domainKey,
-        expiresAt,
-      },
+        subdomain: reg.subdomain,
+        fulldomain: reg.fulldomain,
+        username: reg.username,
+        password: reg.password,
+        wildcard: Boolean(wildcard)
+      }
+    });
+
+    return res.json({
+      domain,
+      cname: `_acme-challenge.${domain} -> ${reg.fulldomain}`,
+      registration: reg
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err?.response?.data || err?.message || "Internal Server Error"
+    });
+  }
+}
     });
 
     return res.status(200).json({
