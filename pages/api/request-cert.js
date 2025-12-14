@@ -1,107 +1,114 @@
+
+import * as acme from "acme-client";
 import axios from "axios";
-import prisma from "../../lib/prisma";
-import acme from "acme-client";
-import dns from "dns/promises";
+import fs from "fs-extra";
+import path from "path";
+
+const ACME_DNS_API = process.env.ACME_DNS_API || "https://acme.getfreeweb.site";
+const STORE_PATH = process.env.ACME_DNS_STORE || "./acme-dns.json";
+const CERTS_DIR = process.env.CERTS_DIR || "./certs";
+
+async function loadStore() {
+  if (!(await fs.pathExists(STORE_PATH))) return {};
+  return fs.readJson(STORE_PATH);
+}
+
+async function saveStore(data) {
+  await fs.writeJson(STORE_PATH, data, { spaces: 2 });
+}
+
+async function registerWithAcmeDNS() {
+  const res = await axios.post(`${ACME_DNS_API}/register`);
+  return res.data;
+}
+
+async function updateTxt(creds, txt) {
+  await axios.post(
+    `${ACME_DNS_API}/update`,
+    { subdomain: creds.subdomain, txt },
+    {
+      headers: {
+        "X-Api-User": creds.username,
+        "X-Api-Key": creds.password
+      }
+    }
+  );
+}
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
+  if (req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
-  }
 
-  const { domain, wildcard } = req.body;
-
-  if (!domain) {
-    return res.status(400).json({ error: "domain required" });
-  }
-
-  const ACMEDNS_BASE =
-    process.env.ACMEDNS_BASE || "https://acme.getfreeweb.site";
+  const { domain, email, wildcard = false } = req.body;
+  if (!domain || !email)
+    return res.status(400).json({ error: "domain and email required" });
 
   try {
-    //
-    // 1. Check if registration already exists
-    //
-    const existing = await prisma.registration.findUnique({
-      where: { domain },
-    });
+    const store = await loadStore();
 
-    let reg;
+    if (!store[domain]) {
+      const reg = await registerWithAcmeDNS();
+      store[domain] = reg;
+      await saveStore(store);
 
-    if (existing) {
-      reg = {
-        subdomain: existing.subdomain,
-        fulldomain: existing.fulldomain,
-        username: existing.username,
-        password: existing.password,
-      };
-    } else {
-      //
-      // 2. Register with ACME DNS
-      //
-      const r = await axios.post(`${ACMEDNS_BASE}/register`, {});
-      reg = r.data;
-
-      await prisma.registration.create({
-        data: {
-          domain,
-          subdomain: reg.subdomain,
-          fulldomain: reg.fulldomain,
-          username: reg.username,
-          password: reg.password,
-          wildcard: Boolean(wildcard),
-        },
+      return res.status(200).json({
+        success: true,
+        message: "Add this CNAME record before issuing certificate",
+        cname: {
+          name: `_acme-challenge.${domain}`,
+          value: reg.fulldomain
+        }
       });
     }
 
-    //
-    // 3. Generate private key for certificate
-    //
-    const [privateKey, csr] = await acme.forge.createCsr({
-      commonName: wildcard ? `*.${domain}` : domain,
-    });
+    const creds = store[domain];
 
-    //
-    // 4. Create ACME client
-    //
     const client = new acme.Client({
       directoryUrl: acme.directory.letsencrypt.production,
-      accountKey: await acme.forge.createPrivateKey(),
+      accountKey: await acme.crypto.createPrivateKey()
     });
 
-    //
-    // 5. Create order
-    //
-    const order = await client.createOrder({
-      identifiers: [
-        {
-          type: "dns",
-          value: wildcard ? `*.${domain}` : domain,
-        },
-      ],
+    await client.createAccount({
+      termsOfServiceAgreed: true,
+      contact: [`mailto:${email}`]
     });
 
-    //
-    // 6. Get DNS-01 challenge
-    //
-    const authorizations = await client.getAuthorizations(order);
-    const challenge = authorizations[0].challenges.find(
-      (c) => c.type === "dns-01"
-    );
-
-    const challengeKey = await client.getChallengeKeyAuthorization(challenge);
-
-    //
-    // 7. Push challenge TXT record to ACME DNS server
-    //
-    await axios.post(`${ACMEDNS_BASE}/update`, {
-      username: reg.username,
-      password: reg.password,
-      txt: challengeKey,
+    const names = wildcard ? [`*.${domain}`, domain] : [domain];
+    const [key, csr] = await acme.crypto.createCsr({
+      commonName: names[0],
+      altNames: names
     });
 
-    //
-    // 8. Wait for DNS to propagate
-    //
+    const cert = await client.auto({
+      csr,
+      email,
+      termsOfServiceAgreed: true,
+      challengeCreateFn: async (authz, challenge, keyAuthorization) => {
+        if (challenge.type !== "dns-01") return;
+        const txt = acme.crypto
+          .createHash("sha256")
+          .update(keyAuthorization)
+          .digest("base64url");
+        await updateTxt(creds, txt);
+        await new Promise(r => setTimeout(r, 20000));
+      },
+      challengeRemoveFn: async () => {}
+    });
+
+    const dir = path.join(CERTS_DIR, domain);
+    await fs.ensureDir(dir);
+    await fs.writeFile(path.join(dir, "privkey.pem"), key.toString());
+    await fs.writeFile(path.join(dir, "fullchain.pem"), cert);
+
+    res.status(200).json({
+      success: true,
+      message: "Certificate issued",
+      files: ["privkey.pem", "fullchain.pem"]
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
     const challengeDomain = `_acme-challenge.${domain}`;
 
     let success = false;
