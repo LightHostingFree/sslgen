@@ -1,12 +1,14 @@
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
 
+const EXPIRING_THRESHOLD_DAYS = Number(process.env.EXPIRING_THRESHOLD_DAYS || 14);
+
 function computeStatus(certificate) {
   if (!certificate.expiresAt) return 'pending';
   const now = Date.now();
   const expiry = new Date(certificate.expiresAt).getTime();
   if (expiry <= now) return 'expired';
-  if (expiry - now <= 14 * 24 * 60 * 60 * 1000) return 'expiring';
+  if (expiry - now <= EXPIRING_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) return 'expiring';
   return 'active';
 }
 

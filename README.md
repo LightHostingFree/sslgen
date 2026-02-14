@@ -18,6 +18,10 @@ Quick start:
 3. `npm run dev`
 
 Environment variables:
-- `JWT_SECRET` (required outside local dev)
+- `JWT_SECRET` (required)
 - `ACMEDNS_BASE` (default: `https://acme.getfreeweb.site`)
 - `ACME_DIRECTORY` (default: Let's Encrypt staging)
+- `BCRYPT_ROUNDS` (default: `12`)
+- `DNS_PROPAGATION_DELAY_MS` (default: `20000`)
+- `CERT_VALIDITY_DAYS` (default: `90`)
+- `EXPIRING_THRESHOLD_DAYS` / `RENEWAL_THRESHOLD_DAYS` (default: `14`)

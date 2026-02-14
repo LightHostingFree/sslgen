@@ -2,10 +2,13 @@ import bcrypt from 'bcryptjs';
 import prisma from '../../../lib/prisma';
 import { signToken } from '../../../lib/auth';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'invalid email' });
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });

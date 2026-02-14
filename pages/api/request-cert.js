@@ -5,6 +5,8 @@ import { requireAuth } from '../../lib/auth';
 
 const ACME_DNS_API = process.env.ACMEDNS_BASE || 'https://acme.getfreeweb.site';
 const ACME_DIRECTORY = process.env.ACME_DIRECTORY || acme.directory.letsencrypt.staging;
+const DNS_PROPAGATION_DELAY_MS = Number(process.env.DNS_PROPAGATION_DELAY_MS || 20000);
+const CERT_VALIDITY_DAYS = Number(process.env.CERT_VALIDITY_DAYS || 90);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -54,13 +56,13 @@ export default async function handler(req, res) {
             }
           }
         );
-        await new Promise((resolve) => setTimeout(resolve, 20000));
+        await new Promise((resolve) => setTimeout(resolve, DNS_PROPAGATION_DELAY_MS));
       },
       challengeRemoveFn: async () => {}
     });
 
     const issuedAt = new Date();
-    const expiresAt = new Date(issuedAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(issuedAt.getTime() + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
     await prisma.certificate.update({
       where: { id: certificate.id },
       data: {

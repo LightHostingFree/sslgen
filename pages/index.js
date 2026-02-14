@@ -58,7 +58,7 @@ export default function Home() {
     const res = await fetch('/api/request-cert', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ domain, wildcard, email })
+      body: JSON.stringify({ domain, wildcard })
     });
     const data = await res.json();
     if (!res.ok) return setError(data.error || 'Failed to generate');
