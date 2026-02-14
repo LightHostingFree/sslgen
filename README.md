@@ -34,6 +34,7 @@ Environment variables:
 - `ACME_DIRECTORY` (required): ACME directory URL.
 - `POSTGRES_PRISMA_URL` (required): Prisma PostgreSQL connection URL.
 - `BCRYPT_ROUNDS` (default: `12`): password hashing cost.
+- `CERT_ENCRYPTION_KEY` (required): used for AES-256-GCM encryption of certificate and acme-dns secrets at rest.
 - `DNS_PROPAGATION_DELAY_MS` (default: `20000`): wait time before ACME validation.
 - `CERT_VALIDITY_DAYS` (default: `90`): used to calculate certificate expiry date in app state.
 - `EXPIRING_THRESHOLD_DAYS` / `RENEWAL_THRESHOLD_DAYS` (default: `14`): thresholds for dashboard status and renew checks.
