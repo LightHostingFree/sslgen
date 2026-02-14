@@ -4,8 +4,8 @@ import * as Sentry from '@sentry/nextjs';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
 
-const ACME_DNS_API = process.env.ACMEDNS_BASE || 'https://acme.getfreeweb.site';
-const ACME_DIRECTORY = process.env.ACME_DIRECTORY || acme.directory.letsencrypt.staging;
+const ACME_DNS_API = process.env.ACMEDNS_BASE;
+const ACME_DIRECTORY = process.env.ACME_DIRECTORY;
 const DNS_PROPAGATION_DELAY_MS = Number(process.env.DNS_PROPAGATION_DELAY_MS || 20000);
 const CERT_VALIDITY_DAYS = Number(process.env.CERT_VALIDITY_DAYS || 90);
 
@@ -16,6 +16,9 @@ export default async function handler(req, res) {
 
   const { domain, email, wildcard = false } = req.body || {};
   if (!domain) return res.status(400).json({ error: 'domain required' });
+  if (!ACME_DNS_API || !ACME_DIRECTORY) {
+    return res.status(500).json({ error: 'ACMEDNS_BASE and ACME_DIRECTORY must be configured' });
+  }
 
   try {
     const certificate = await prisma.certificate.findUnique({

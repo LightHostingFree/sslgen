@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 export default function Home() {
+  const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -77,6 +78,7 @@ export default function Home() {
       <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
         <div className="bg-white p-6 rounded-xl w-full max-w-md shadow">
           <h1 className="text-xl font-bold mb-4">SSL Platform Login / Register</h1>
+          {!clerkPublishableKey && <p className="mb-3 text-red-600">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not configured</p>}
           <input className="w-full border rounded p-2 mb-2" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input className="w-full border rounded p-2 mb-4" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           <div className="flex gap-2">

@@ -9,7 +9,8 @@ export default async function handler(req,res){
   if (!authUser) return;
   const { domain, wildcard } = req.body;
   if(!domain) return res.status(400).json({ error: 'domain required' });
-  const ACMEDNS_BASE = process.env.ACMEDNS_BASE || 'https://acme.getfreeweb.site';
+  const ACMEDNS_BASE = process.env.ACMEDNS_BASE;
+  if (!ACMEDNS_BASE) return res.status(500).json({ error: 'ACMEDNS_BASE must be configured' });
   try{
     const existing = await prisma.certificate.findUnique({ where: { userId_domain: { userId: authUser.userId, domain } } });
 
