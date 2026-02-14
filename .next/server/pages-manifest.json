@@ -1,1 +1,10 @@
-{}
+{
+  "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
+  "/api/health": "pages/api/health.js",
+  "/api/register-domain": "pages/api/register-domain.js",
+  "/api/renew": "pages/api/renew.js",
+  "/api/request-cert": "pages/api/request-cert.js",
+  "/": "pages/index.js",
+  "/_document": "pages/_document.js"
+}
