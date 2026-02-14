@@ -1,4 +1,5 @@
 import axios from 'axios';
+import * as Sentry from '@sentry/nextjs';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
 
@@ -33,6 +34,7 @@ export default async function handler(req,res){
     const cname = `_acme-challenge.${domain} -> ${reg.fulldomain}`;
     return res.json({ domain, cname, registration: reg });
   }catch(e){
+    Sentry.captureException(e);
     return res.status(500).json({ error: e.response?.data || e.message });
   }
 }
