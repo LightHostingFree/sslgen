@@ -24,7 +24,7 @@ Setup guide:
    - `npm run dev`
 
 Environment variables:
-- `JWT_SECRET` (required): secret for signing auth tokens. Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+- `JWT_SECRET` (required): Secret for signing auth tokens. Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 - `ACMEDNS_BASE` (default: `https://acme.getfreeweb.site`): acme-dns API base URL.
 - `ACME_DIRECTORY` (default: Let's Encrypt staging `https://acme-staging-v02.api.letsencrypt.org/directory`): set to production when ready.
 - `BCRYPT_ROUNDS` (default: `12`): password hashing cost.
