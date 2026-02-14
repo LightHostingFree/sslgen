@@ -3,41 +3,34 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
   id        Int      @id @default(autoincrement())
-  clerkId   String   @unique
   email     String   @unique
-  name      String?
-  isAdmin   Boolean  @default(false)
+  passwordHash String
+  createdAt DateTime @default(now())
+  certificates Certificate[]
+}
+
+model Certificate {
+  id         Int      @id @default(autoincrement())
+  userId    Int
+  domain    String
+  acmeDnsSubdomain String
+  acmeDnsUsername  String
+  acmeDnsPassword  String
+  cnameTarget String
+  status    String   @default("pending")
+  issuedAt  DateTime?
+  expiresAt DateTime?
+  certificatePem String?
+  privateKeyPem  String?
   createdAt DateTime @default(now())
 
-  // Required opposite relation
-  registrations Registration[]
-}
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-model Registration {
-  id         Int      @id @default(autoincrement())
-  domain     String   @unique
-  subdomain  String
-  fulldomain String
-  username   String
-  password   String
-  wildcard   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-
-  ownerId Int?
-  owner   User? @relation(fields: [ownerId], references: [id])
-}
-
-model Cert {
-  id        Int      @id @default(autoincrement())
-  domain    String
-  certPem   String   @db.Text
-  keyPem    String   @db.Text
-  issuedAt  DateTime @default(now())
-  expiresAt DateTime
+  @@unique([userId, domain])
 }

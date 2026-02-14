@@ -1,161 +1,85 @@
+import * as acme from 'acme-client';
+import axios from 'axios';
+import prisma from '../../lib/prisma';
+import { requireAuth } from '../../lib/auth';
 
-import * as acme from "acme-client";
-import axios from "axios";
-import fs from "fs-extra";
-import path from "path";
-
-const ACME_DNS_API = process.env.ACME_DNS_API || "https://acme.getfreeweb.site";
-const STORE_PATH = process.env.ACME_DNS_STORE || "./acme-dns.json";
-const CERTS_DIR = process.env.CERTS_DIR || "./certs";
-
-async function loadStore() {
-  if (!(await fs.pathExists(STORE_PATH))) return {};
-  return fs.readJson(STORE_PATH);
-}
-
-async function saveStore(data) {
-  await fs.writeJson(STORE_PATH, data, { spaces: 2 });
-}
-
-async function registerWithAcmeDNS() {
-  const res = await axios.post(`${ACME_DNS_API}/register`);
-  return res.data;
-}
-
-async function updateTxt(creds, txt) {
-  await axios.post(
-    `${ACME_DNS_API}/update`,
-    { subdomain: creds.subdomain, txt },
-    {
-      headers: {
-        "X-Api-User": creds.username,
-        "X-Api-Key": creds.password
-      }
-    }
-  );
-}
+const ACME_DNS_API = process.env.ACMEDNS_BASE || 'https://acme.getfreeweb.site';
+const ACME_DIRECTORY = process.env.ACME_DIRECTORY || acme.directory.letsencrypt.staging;
 
 export default async function handler(req, res) {
-  if (req.method !== "POST")
-    return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const authUser = requireAuth(req, res);
+  if (!authUser) return;
 
-  const { domain, email, wildcard = false } = req.body;
-  if (!domain || !email)
-    return res.status(400).json({ error: "domain and email required" });
+  const { domain, email, wildcard = false } = req.body || {};
+  if (!domain) return res.status(400).json({ error: 'domain required' });
 
   try {
-    const store = await loadStore();
+    const certificate = await prisma.certificate.findUnique({
+      where: { userId_domain: { userId: authUser.userId, domain } }
+    });
+    if (!certificate) return res.status(404).json({ error: 'Register domain first' });
 
-    if (!store[domain]) {
-      const reg = await registerWithAcmeDNS();
-      store[domain] = reg;
-      await saveStore(store);
-
-      return res.status(200).json({
-        success: true,
-        message: "Add this CNAME record before issuing certificate",
-        cname: {
-          name: `_acme-challenge.${domain}`,
-          value: reg.fulldomain
-        }
-      });
-    }
-
-    const creds = store[domain];
-
+    const accountEmail = email || authUser.email;
     const client = new acme.Client({
-      directoryUrl: acme.directory.letsencrypt.production,
+      directoryUrl: ACME_DIRECTORY,
       accountKey: await acme.crypto.createPrivateKey()
     });
 
     await client.createAccount({
       termsOfServiceAgreed: true,
-      contact: [`mailto:${email}`]
+      contact: [`mailto:${accountEmail}`]
     });
 
     const names = wildcard ? [`*.${domain}`, domain] : [domain];
-    const [key, csr] = await acme.crypto.createCsr({
+    const [privateKey, csr] = await acme.crypto.createCsr({
       commonName: names[0],
       altNames: names
     });
 
-    const cert = await client.auto({
+    const certificatePem = await client.auto({
       csr,
-      email,
+      email: accountEmail,
       termsOfServiceAgreed: true,
-      challengeCreateFn: async (authz, challenge, keyAuthorization) => {
-        if (challenge.type !== "dns-01") return;
-        const txt = acme.crypto
-          .createHash("sha256")
-          .update(keyAuthorization)
-          .digest("base64url");
-        await updateTxt(creds, txt);
-        await new Promise(r => setTimeout(r, 20000));
+      challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
+        if (challenge.type !== 'dns-01') return;
+        const txt = acme.crypto.createHash('sha256').update(keyAuthorization).digest('base64url');
+        await axios.post(
+          `${ACME_DNS_API}/update`,
+          { subdomain: certificate.acmeDnsSubdomain, txt },
+          {
+            headers: {
+              'X-Api-User': certificate.acmeDnsUsername,
+              'X-Api-Key': certificate.acmeDnsPassword
+            }
+          }
+        );
+        await new Promise((resolve) => setTimeout(resolve, 20000));
       },
       challengeRemoveFn: async () => {}
     });
 
-    const dir = path.join(CERTS_DIR, domain);
-    await fs.ensureDir(dir);
-    await fs.writeFile(path.join(dir, "privkey.pem"), key.toString());
-    await fs.writeFile(path.join(dir, "fullchain.pem"), cert);
-
-    res.status(200).json({
-      success: true,
-      message: "Certificate issued",
-      files: ["privkey.pem", "fullchain.pem"]
+    const issuedAt = new Date();
+    const expiresAt = new Date(issuedAt.getTime() + 90 * 24 * 60 * 60 * 1000);
+    await prisma.certificate.update({
+      where: { id: certificate.id },
+      data: {
+        issuedAt,
+        expiresAt,
+        certificatePem,
+        privateKeyPem: privateKey.toString(),
+        status: 'active'
+      }
     });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-}
-    const challengeDomain = `_acme-challenge.${domain}`;
 
-    let success = false;
-    for (let i = 0; i < 30; i++) {
-      try {
-        const records = await dns.resolveTxt(challengeDomain);
-        if (records.flat().includes(challengeKey)) {
-          success = true;
-          break;
-        }
-      } catch {}
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-
-    if (!success) {
-      return res.status(500).json({ error: "DNS challenge did not propagate" });
-    }
-
-    //
-    // 9. Verify challenge
-    //
-    await client.verifyChallenge(authorizations[0], challenge);
-    await client.completeChallenge(challenge);
-
-    //
-    // 10. Wait for challenge to be valid
-    //
-    await client.waitForValidStatus(challenge);
-
-    //
-    // 11. Finalize certificate
-    //
-    const certificate = await client.finalizeOrder(order, csr);
-
-    //
-    // 12. Return certificate + private key
-    //
     return res.json({
       domain,
-      certificate,
+      certificate: certificatePem,
       privateKey: privateKey.toString(),
-      cname: `_acme-challenge.${domain} -> ${reg.fulldomain}`,
-      registration: reg,
+      cname: `_acme-challenge.${domain} -> ${certificate.cnameTarget}`,
+      status: 'active'
     });
-  } catch (err) {
-    return res.status(500).json({
-      error: err?.response?.data || err?.message,
-    });
+  } catch (error) {
+    return res.status(500).json({ error: error?.response?.data || error.message });
   }
 }

@@ -1,17 +1,23 @@
-SSL Generator - Neon + Prisma + Clerk Auth (Free stack)
+SSL Certificate Platform (Next.js + ACME DNS-01 + acme-dns)
 
-What's included:
-- Next.js app with Clerk auth (frontend)
-- Prisma schema ready for Neon (Postgres)
-- API routes for acme-dns registration and ACME certificate issuance (DNS-01)
-- Wildcard support
-- Auto-renew endpoint compatible with cron-job.org
-- Example env vars and deployment instructions (Vercel + Neon + Clerk)
-- NOTE: This package also contains the file you previously uploaded at: /mnt/data/dash-main.zip
+Features:
+- Register/Login using JWT + bcrypt password hashing
+- User-scoped certificate dashboard
+- ACME DNS-01 workflow using acme-dns (`https://acme.getfreeweb.site/`)
+- Domain registration endpoint that returns required CNAME record
+- Certificate generation endpoint (status: `pending`, `active`, `expiring`, `expired`)
+- Stored data (SQLite via Prisma):
+  - Users
+  - Certificates
+  - acme-dns credentials
+  - Expiry and PEM data
 
-Setup summary:
-1. Create Neon Postgres DB and copy connection string to DATABASE_URL
-2. Create a Clerk project (https://clerk.com) and add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in Vercel
-3. Set ACMEDNS_BASE (e.g. https://acme.getfreeweb.site) and ACME_DIRECTORY (Let's Encrypt staging for testing)
-4. npx prisma generate && npx prisma db push
-5. Deploy on Vercel, set environment variables, and set up cron-job.org to call /api/renew
+Quick start:
+1. `npm install`
+2. `npx prisma db push`
+3. `npm run dev`
+
+Environment variables:
+- `JWT_SECRET` (required outside local dev)
+- `ACMEDNS_BASE` (default: `https://acme.getfreeweb.site`)
+- `ACME_DIRECTORY` (default: Let's Encrypt staging)

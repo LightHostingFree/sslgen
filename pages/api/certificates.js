@@ -1,0 +1,34 @@
+import prisma from '../../lib/prisma';
+import { requireAuth } from '../../lib/auth';
+
+function computeStatus(certificate) {
+  if (!certificate.expiresAt) return 'pending';
+  const now = Date.now();
+  const expiry = new Date(certificate.expiresAt).getTime();
+  if (expiry <= now) return 'expired';
+  if (expiry - now <= 14 * 24 * 60 * 60 * 1000) return 'expiring';
+  return 'active';
+}
+
+export default async function handler(req, res) {
+  const authUser = requireAuth(req, res);
+  if (!authUser) return;
+
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const certificates = await prisma.certificate.findMany({
+    where: { userId: authUser.userId },
+    orderBy: { createdAt: 'desc' }
+  });
+  const updated = await Promise.all(
+    certificates.map(async (certificate) => {
+      const status = computeStatus(certificate);
+      if (status !== certificate.status) {
+        return prisma.certificate.update({ where: { id: certificate.id }, data: { status } });
+      }
+      return certificate;
+    })
+  );
+
+  return res.json({ certificates: updated });
+}
