@@ -1,42 +1,126 @@
-import { useAuth, SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-export default function Home(){
-  const { user } = useAuth?.() || {};
-  const [domain,setDomain]=useState(''); const [wild,setWild]=useState(false);
-  const [cname,setCname]=useState(null); const [cert,setCert]=useState(null); const [err,setErr]=useState(null);
+export default function Home() {
+  const [token, setToken] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [domain, setDomain] = useState('');
+  const [wildcard, setWildcard] = useState(false);
+  const [cname, setCname] = useState('');
+  const [error, setError] = useState('');
+  const [certificates, setCertificates] = useState([]);
 
-  async function registerDomain(){
-    setErr(null);
-    const res = await fetch('/api/register-domain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain,wildcard:wild})});
-    const d = await res.json();
-    if(d.error) setErr(d.error); else setCname(d.cname);
+  useEffect(() => {
+    const saved = window.localStorage.getItem('token') || '';
+    setToken(saved);
+  }, []);
+
+  useEffect(() => {
+    if (token) loadCertificates(token);
+  }, [token]);
+
+  async function auth(path) {
+    setError('');
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) return setError(data.error || 'Request failed');
+    window.localStorage.setItem('token', data.token);
+    setToken(data.token);
   }
-  async function requestCert(){
-    setErr(null);
-    const res = await fetch('/api/request-cert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain,wildcard:wild})});
-    const d = await res.json();
-    if(d.error) setErr(d.error); else setCert(d);
+
+  async function loadCertificates(activeToken = token) {
+    const res = await fetch('/api/certificates', {
+      headers: { Authorization: `Bearer ${activeToken}` }
+    });
+    const data = await res.json();
+    if (res.ok) setCertificates(data.certificates || []);
   }
 
-  return <div className='min-h-screen bg-gradient-to-tr from-sky-50 to-indigo-50 flex items-center justify-center p-6'>
-    <div className='bg-white rounded-3xl shadow-xl p-8 w-full max-w-3xl'>
-      <div className='flex justify-between items-center mb-6'>
-        <h1 className='text-2xl font-bold'>SSL Generator</h1>
-        <div>{/* Clerk auth UI */}<SignedIn><UserButton/></SignedIn><SignedOut><SignInButton/></SignedOut></div>
+  async function registerDomain() {
+    setError('');
+    const res = await fetch('/api/register-domain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ domain, wildcard })
+    });
+    const data = await res.json();
+    if (!res.ok) return setError(data.error || 'Failed to register');
+    setCname(data.cname);
+    loadCertificates();
+  }
+
+  async function generateCertificate() {
+    setError('');
+    const res = await fetch('/api/request-cert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ domain, wildcard })
+    });
+    const data = await res.json();
+    if (!res.ok) return setError(data.error || 'Failed to generate');
+    setCname(data.cname);
+    loadCertificates();
+  }
+
+  function logout() {
+    window.localStorage.removeItem('token');
+    setToken('');
+    setCertificates([]);
+  }
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-xl w-full max-w-md shadow">
+          <h1 className="text-xl font-bold mb-4">SSL Platform Login / Register</h1>
+          <input className="w-full border rounded p-2 mb-2" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className="w-full border rounded p-2 mb-4" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <div className="flex gap-2">
+            <button onClick={() => auth('/api/auth/login')} className="bg-blue-600 text-white px-4 py-2 rounded">Login</button>
+            <button onClick={() => auth('/api/auth/register')} className="bg-green-600 text-white px-4 py-2 rounded">Register</button>
+          </div>
+          {error && <p className="mt-3 text-red-600">{error}</p>}
+        </div>
       </div>
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-4'>
-        <input value={domain} onChange={e=>setDomain(e.target.value)} className='col-span-2 p-3 rounded-xl border' placeholder='mayank.email' />
-        <label className='flex items-center gap-2 p-3 bg-gray-50 rounded-xl border'>
-          <input type='checkbox' checked={wild} onChange={e=>setWild(e.target.checked)} /> Wildcard
-        </label>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-xl p-6 shadow">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">SSL Dashboard</h1>
+          <button onClick={logout} className="text-sm px-3 py-1 border rounded">Logout</button>
+        </div>
+        <div className="grid md:grid-cols-3 gap-3 mb-3">
+          <input className="md:col-span-2 border rounded p-2" placeholder="example.com" value={domain} onChange={(e) => setDomain(e.target.value)} />
+          <label className="border rounded p-2 flex items-center gap-2">
+            <input type="checkbox" checked={wildcard} onChange={(e) => setWildcard(e.target.checked)} />
+            Wildcard
+          </label>
+        </div>
+        <div className="flex gap-2 mb-4">
+          <button onClick={registerDomain} className="bg-blue-600 text-white px-4 py-2 rounded">1) Register Domain</button>
+          <button onClick={generateCertificate} className="bg-green-600 text-white px-4 py-2 rounded">2) Generate SSL</button>
+        </div>
+        {cname && <div className="bg-yellow-50 border p-3 rounded mb-4 font-mono">Create CNAME: {cname}</div>}
+        {error && <p className="mb-3 text-red-600">{error}</p>}
+        <h2 className="font-semibold mb-2">Certificates</h2>
+        <div className="space-y-2">
+          {certificates.map((item) => (
+            <div key={item.id} className="border rounded p-3">
+              <div className="font-medium">{item.domain}</div>
+              <div className="text-sm">Status: {item.status}</div>
+              <div className="text-sm font-mono">_acme-challenge.{item.domain} → {item.cnameTarget}</div>
+            </div>
+          ))}
+          {!certificates.length && <div className="text-sm text-gray-500">No certificates yet</div>}
+        </div>
       </div>
-      <div className='flex gap-3 mb-4'>
-        <button onClick={registerDomain} className='px-5 py-3 bg-blue-600 text-white rounded-xl'>Register</button>
-        <button onClick={requestCert} className='px-5 py-3 bg-green-600 text-white rounded-xl'>Generate</button>
-      </div>
-      {cname && <div className='p-4 bg-gray-50 rounded-xl font-mono mb-3'>{cname}</div>}
-      {cert && <div><h3 className='font-semibold'>Certificate</h3><textarea className='w-full h-40 p-2 font-mono'>{cert.certificate}</textarea></div>}
     </div>
-  </div>
+  );
 }

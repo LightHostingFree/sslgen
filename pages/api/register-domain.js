@@ -1,30 +1,33 @@
 import axios from 'axios';
 import prisma from '../../lib/prisma';
-import { clerkClient } from '@clerk/nextjs/server';
+import { requireAuth } from '../../lib/auth';
 
 export default async function handler(req,res){
-  if(req.method!=='POST') return res.status(405).end();
+  if(req.method!=='POST') return res.status(405).json({ error: 'Method not allowed' });
+  const authUser = requireAuth(req, res);
+  if (!authUser) return;
   const { domain, wildcard } = req.body;
   if(!domain) return res.status(400).json({ error: 'domain required' });
   const ACMEDNS_BASE = process.env.ACMEDNS_BASE || 'https://acme.getfreeweb.site';
   try{
-    const existing = await prisma.registration.findUnique({ where: { domain } });
+    const existing = await prisma.certificate.findUnique({ where: { userId_domain: { userId: authUser.userId, domain } } });
 
     if(existing){
-      const cname = `_acme-challenge.${domain} -> ${existing.fulldomain}`;
-      return res.json({ domain, cname, registration: { subdomain: existing.subdomain, fulldomain: existing.fulldomain } });
+      const cname = `_acme-challenge.${domain} -> ${existing.cnameTarget}`;
+      return res.json({ domain, cname, status: existing.status });
     }
 
     const r = await axios.post(`${ACMEDNS_BASE}/register`, {});
     const reg = r.data;
-    await prisma.registration.create({
+    await prisma.certificate.create({
       data: {
+        userId: authUser.userId,
         domain,
-        subdomain: reg.subdomain,
-        fulldomain: reg.fulldomain,
-        username: reg.username,
-        password: reg.password,
-        wildcard: !!wildcard
+        acmeDnsSubdomain: reg.subdomain,
+        acmeDnsUsername: reg.username,
+        acmeDnsPassword: reg.password,
+        cnameTarget: reg.fulldomain,
+        status: 'pending'
       }
     });
     const cname = `_acme-challenge.${domain} -> ${reg.fulldomain}`;
