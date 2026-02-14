@@ -25,3 +25,5 @@ Environment variables:
 - `DNS_PROPAGATION_DELAY_MS` (default: `20000`)
 - `CERT_VALIDITY_DAYS` (default: `90`)
 - `EXPIRING_THRESHOLD_DAYS` / `RENEWAL_THRESHOLD_DAYS` (default: `14`)
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (optional, enables Sentry)
+- `SENTRY_TRACES_SAMPLE_RATE` (default: `0`)

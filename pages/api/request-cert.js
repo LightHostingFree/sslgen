@@ -1,5 +1,6 @@
 import * as acme from 'acme-client';
 import axios from 'axios';
+import * as Sentry from '@sentry/nextjs';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
 
@@ -82,6 +83,7 @@ export default async function handler(req, res) {
       status: 'active'
     });
   } catch (error) {
+    Sentry.captureException(error);
     return res.status(500).json({ error: error?.response?.data || error.message });
   }
 }
