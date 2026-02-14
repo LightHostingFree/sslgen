@@ -33,3 +33,4 @@ Environment variables:
 - `EXPIRING_THRESHOLD_DAYS` / `RENEWAL_THRESHOLD_DAYS` (default: `14`): thresholds for dashboard status and renew checks.
 - `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (optional): enables Sentry error reporting.
 - `SENTRY_TRACES_SAMPLE_RATE` (default: `0`): Sentry tracing sample rate.
+- `SENTRY_AUTH_TOKEN` (optional): enables source map uploads for Sentry releases during `next build`.
