@@ -12,18 +12,24 @@ Features:
   - acme-dns credentials
   - Expiry and PEM data
 
-Quick start:
-1. `npm install`
-2. `npx prisma db push`
-3. `npm run dev`
+Setup guide:
+1. Install dependencies:
+   - `npm install`
+2. Create `.env.local` in the project root:
+   - `JWT_SECRET=replace-with-a-long-random-secret`
+   - `ACMEDNS_BASE=https://acme.getfreeweb.site`
+3. Initialize the local SQLite database:
+   - `npx prisma db push`
+4. Start development server:
+   - `npm run dev`
 
 Environment variables:
-- `JWT_SECRET` (required)
-- `ACMEDNS_BASE` (default: `https://acme.getfreeweb.site`)
-- `ACME_DIRECTORY` (default: Let's Encrypt staging)
-- `BCRYPT_ROUNDS` (default: `12`)
-- `DNS_PROPAGATION_DELAY_MS` (default: `20000`)
-- `CERT_VALIDITY_DAYS` (default: `90`)
-- `EXPIRING_THRESHOLD_DAYS` / `RENEWAL_THRESHOLD_DAYS` (default: `14`)
-- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (optional, enables Sentry)
-- `SENTRY_TRACES_SAMPLE_RATE` (default: `0`)
+- `JWT_SECRET` (required): secret for signing auth tokens. Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+- `ACMEDNS_BASE` (default: `https://acme.getfreeweb.site`): acme-dns API base URL.
+- `ACME_DIRECTORY` (default: Let's Encrypt staging `https://acme-staging-v02.api.letsencrypt.org/directory`): set to production when ready.
+- `BCRYPT_ROUNDS` (default: `12`): password hashing cost.
+- `DNS_PROPAGATION_DELAY_MS` (default: `20000`): wait time before ACME validation.
+- `CERT_VALIDITY_DAYS` (default: `90`): used to calculate certificate expiry date in app state.
+- `EXPIRING_THRESHOLD_DAYS` / `RENEWAL_THRESHOLD_DAYS` (default: `14`): thresholds for dashboard status and renew checks.
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (optional): enables Sentry error reporting.
+- `SENTRY_TRACES_SAMPLE_RATE` (default: `0`): Sentry tracing sample rate.
