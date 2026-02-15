@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
 const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const SERVER_REQUEST_MAX_DURATION_MS = 300000;
+const REQUEST_TIMEOUT_MS = SERVER_REQUEST_MAX_DURATION_MS + 10000;
 
 export default function Home() {
   const [token, setToken] = useState('');
@@ -75,7 +77,7 @@ export default function Home() {
     if (!order?.domain) return setError('Domain is required to generate certificate');
     setIsValidating(true);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180000);
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const res = await fetch('/api/request-cert', {
         method: 'POST',
@@ -91,7 +93,10 @@ export default function Home() {
       setDomain('');
       await loadCertificates();
     } catch (requestError) {
-      setError(requestError.name === 'AbortError' ? 'Validation timed out. Please try again.' : 'Validation failed. Please try again.');
+      const errorMessage = requestError.name === 'AbortError'
+        ? 'Validation timed out. Please try again.'
+        : requestError?.message || 'Validation failed. Please try again.';
+      setError(errorMessage);
     } finally {
       clearTimeout(timeoutId);
       setIsValidating(false);
