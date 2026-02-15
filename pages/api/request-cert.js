@@ -14,6 +14,8 @@ const DNS_PROPAGATION_DELAY_MS = Number(process.env.DNS_PROPAGATION_DELAY_MS || 
 const CERT_VALIDITY_DAYS = Number(process.env.CERT_VALIDITY_DAYS || 90);
 
 async function validateDomainExists(domain) {
+  const isServerError = (err) => ['ESERVFAIL', 'EREFUSED', 'ETIMEOUT'].includes(err?.code);
+  
   try {
     await dns.resolve(domain, 'A');
     return { exists: true, error: null };
@@ -24,10 +26,7 @@ async function validateDomainExists(domain) {
       return { exists: true, error: null };
     } catch (error2) {
       // If DNS server refuses the query, we can't validate
-      // Check both errors for server issues
-      const serverError = error2.code === 'ESERVFAIL' || error2.code === 'EREFUSED' || error2.code === 'ETIMEOUT' ||
-                          error.code === 'ESERVFAIL' || error.code === 'EREFUSED' || error.code === 'ETIMEOUT';
-      if (serverError) {
+      if (isServerError(error) || isServerError(error2)) {
         return { exists: null, error: 'DNS validation unavailable' };
       }
       return { exists: false, error: error2.message };
