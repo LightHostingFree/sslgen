@@ -13,6 +13,7 @@ export default function Home() {
   const [currentView, setCurrentView] = useState('list');
   const [filter, setFilter] = useState('ALL');
   const [validationData, setValidationData] = useState(null);
+  const [selectedCertificate, setSelectedCertificate] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [certificates, setCertificates] = useState([]);
@@ -100,6 +101,13 @@ export default function Home() {
     return certificates.filter((certificate) => certificate.status === filter);
   }
 
+  function statusBadgeClass(status) {
+    if (status === 'ISSUED') return 'bg-green-600';
+    if (status === 'ACTION_REQUIRED') return 'bg-amber-500';
+    if (status === 'FAILED') return 'bg-red-600';
+    return 'bg-gray-500';
+  }
+
   if (!token) {
     return (
       <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
@@ -169,6 +177,73 @@ export default function Home() {
     );
   }
 
+  if (currentView === 'detail' && selectedCertificate) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold">Let&apos;s Encrypt SSL Certificate for {selectedCertificate.domain}</h1>
+            <button onClick={() => setCurrentView('list')} className="text-sm px-3 py-1 border rounded">Back</button>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 space-y-3">
+              <section className="bg-white border rounded">
+                <div className="px-4 py-3 border-b font-semibold">Step 4: Install SSL Certificate</div>
+                <div className="px-4 py-3 text-sm text-gray-700">
+                  Use the private key and certificate files to install SSL on your hosting account or server.
+                </div>
+                <div className="px-4 pb-4">
+                  <button className="px-3 py-2 border rounded text-sm">View Private Key and Certificate</button>
+                </div>
+              </section>
+              <section className="bg-white border rounded">
+                <div className="px-4 py-3 border-b font-semibold">Step 5: Verify Installation on {selectedCertificate.domain}</div>
+                <div className="px-4 py-3 text-sm text-gray-700">
+                  Check whether your website is serving the issued SSL certificate correctly.
+                </div>
+                <div className="px-4 pb-4 text-sm">
+                  <div className="grid grid-cols-3 gap-y-2">
+                    <div className="font-medium">Status</div>
+                    <div className="col-span-2"><span className={`text-white text-xs px-2 py-1 rounded ${statusBadgeClass(selectedCertificate.status)}`}>{selectedCertificate.status}</span></div>
+                    <div className="font-medium">Issuer</div>
+                    <div className="col-span-2">Let&apos;s Encrypt</div>
+                    <div className="font-medium">Expires at</div>
+                    <div className="col-span-2">{formatDate(selectedCertificate.expiresAt)}</div>
+                  </div>
+                </div>
+              </section>
+              <section className="bg-white border rounded">
+                <div className="px-4 py-3 border-b font-semibold">Step 6: Make your website use HTTPS</div>
+                <div className="px-4 py-3 text-sm text-gray-700">
+                  <ol className="list-decimal pl-5 space-y-1">
+                    <li>Make sure all URLs use HTTPS and your address bar shows a secure lock.</li>
+                    <li>Force all visitors to use HTTPS with your server or application settings.</li>
+                  </ol>
+                </div>
+              </section>
+              <button className="text-sm text-purple-700">Delete Certificate Order</button>
+            </div>
+            <aside className="bg-white border rounded p-4 text-sm h-fit">
+              <h2 className="font-semibold mb-3">Certificate Details</h2>
+              <div className="space-y-2 text-gray-700">
+                <p><span className="block text-xs text-gray-500">DOMAIN</span>{selectedCertificate.domain}</p>
+                <p><span className="block text-xs text-gray-500">CERTIFICATE PROVIDER</span>Let&apos;s Encrypt</p>
+                <p><span className="block text-xs text-gray-500">STATUS</span>{selectedCertificate.status}</p>
+                <p><span className="block text-xs text-gray-500">CREATED AT</span>{formatDate(selectedCertificate.createdAt)}</p>
+                <p><span className="block text-xs text-gray-500">ISSUE DATE</span>{formatDate(selectedCertificate.issuedAt)}</p>
+                <p><span className="block text-xs text-gray-500">EXPIRATION DATE</span>{formatDate(selectedCertificate.expiresAt)}</p>
+                <label className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-xs text-gray-500">SEND EXPIRATION REMINDERS</span>
+                  <input type="checkbox" defaultChecked />
+                </label>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto bg-white rounded-xl p-6 shadow">
@@ -228,8 +303,8 @@ export default function Home() {
                           setCurrentView('validate');
                           return;
                         }
-                        setDomain(item.domain);
-                        setCurrentView('new');
+                        setSelectedCertificate(item);
+                        setCurrentView('detail');
                       }}
                     >
                       Manage
