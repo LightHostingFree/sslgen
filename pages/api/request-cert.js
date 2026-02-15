@@ -24,10 +24,13 @@ async function validateDomainExists(domain) {
       return { exists: true, error: null };
     } catch (error2) {
       // If DNS server refuses the query, we can't validate
-      if (error.code === 'ESERVFAIL' || error.code === 'EREFUSED' || error.code === 'ETIMEOUT') {
+      // Check both errors for server issues
+      const serverError = error2.code === 'ESERVFAIL' || error2.code === 'EREFUSED' || error2.code === 'ETIMEOUT' ||
+                          error.code === 'ESERVFAIL' || error.code === 'EREFUSED' || error.code === 'ETIMEOUT';
+      if (serverError) {
         return { exists: null, error: 'DNS validation unavailable' };
       }
-      return { exists: false, error: error.message };
+      return { exists: false, error: error2.message };
     }
   }
 }
