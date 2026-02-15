@@ -25,6 +25,19 @@ Setup guide:
    - `npx prisma db push`
 4. Start development server:
    - `npm run dev`
+5. Deploy to Vercel:
+   - Create a new Vercel project connected to this repository.
+   - Add runtime environment variables in Vercel Project Settings:
+     - `POSTGRES_PRISMA_URL`
+     - `CLERK_SECRET_KEY`
+     - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+     - `CERT_ENCRYPTION_KEY`
+     - `ACME_DIRECTORY`
+     - `ACMEDNS_BASE` (defaults to `https://acme.getfreeweb.site` when unset)
+     - `SENTRY_DSN`
+     - `NEXT_PUBLIC_SENTRY_DSN`
+     - `SENTRY_AUTH_TOKEN`
+   - Redeploy after setting environment variables.
 
 Environment variables:
 - `CLERK_SECRET_KEY` (required): backend auth secret key.
@@ -41,3 +54,6 @@ Environment variables:
 - `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (optional): enables Sentry error reporting.
 - `SENTRY_TRACES_SAMPLE_RATE` (default: `0`): Sentry tracing sample rate.
 - `SENTRY_AUTH_TOKEN` (optional): enables source map uploads for Sentry releases during `next build`.
+
+Sentry setup command (local):
+- `npx @sentry/wizard@latest -i nextjs --saas --org is-cool-me --project sslgen`
