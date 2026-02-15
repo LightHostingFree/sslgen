@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npm run build",
+  "functions": {
+    "pages/api/request-cert.js": {
+      "maxDuration": 300
+    }
+  }
+}

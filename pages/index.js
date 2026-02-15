@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
 const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const SERVER_REQUEST_MAX_DURATION_MS = 300000;
+const REQUEST_TIMEOUT_MS = SERVER_REQUEST_MAX_DURATION_MS + 10000;
 
 export default function Home() {
   const [token, setToken] = useState('');
@@ -74,11 +76,14 @@ export default function Home() {
     setSuccess('');
     if (!order?.domain) return setError('Domain is required to generate certificate');
     setIsValidating(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const res = await fetch('/api/request-cert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww })
+        body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww }),
+        signal: controller.signal
       });
       const data = await res.json();
       if (!res.ok) return setError(data.error || 'Failed to generate');
@@ -87,7 +92,13 @@ export default function Home() {
       setCurrentView('list');
       setDomain('');
       await loadCertificates();
+    } catch (requestError) {
+      const errorMessage = requestError.name === 'AbortError'
+        ? 'Validation timed out. Please try again.'
+        : requestError?.message || 'Validation failed. Please try again.';
+      setError(errorMessage);
     } finally {
+      clearTimeout(timeoutId);
       setIsValidating(false);
     }
   }
