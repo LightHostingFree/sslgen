@@ -149,7 +149,9 @@ export default async function handler(req, res) {
     } else if (error?.response?.data) {
       // Safely extract error from response data
       const errorData = error.response.data;
-      errorMessage = (typeof errorData === 'object') ? JSON.stringify(errorData) : error.message;
+      errorMessage = (typeof errorData === 'object' && errorData !== null) 
+        ? JSON.stringify(errorData) 
+        : errorMessage;
     }
     
     return res.status(500).json({ error: errorMessage });

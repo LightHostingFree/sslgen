@@ -40,7 +40,9 @@ export default async function handler(req,res){
   }catch(e){
     Sentry.captureException(e);
     const errorData = e.response?.data;
-    const errorMessage = (errorData && typeof errorData === 'object') ? JSON.stringify(errorData) : (e.message || 'An error occurred');
+    const errorMessage = (errorData && typeof errorData === 'object' && errorData !== null) 
+      ? JSON.stringify(errorData) 
+      : (e.message || 'An error occurred');
     return res.status(500).json({ error: errorMessage });
   }
 }
