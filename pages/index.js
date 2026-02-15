@@ -193,7 +193,7 @@ export default function Home() {
                   Use the private key and certificate files to install SSL on your hosting account or server.
                 </div>
                 <div className="px-4 pb-4">
-                  <button className="px-3 py-2 border rounded text-sm">View Private Key and Certificate</button>
+                  <button disabled className="px-3 py-2 border rounded text-sm opacity-60 cursor-not-allowed">View Private Key and Certificate</button>
                 </div>
               </section>
               <section className="bg-white border rounded">
@@ -221,7 +221,7 @@ export default function Home() {
                   </ol>
                 </div>
               </section>
-              <button className="text-sm text-purple-700">Delete Certificate Order</button>
+              <button disabled className="text-sm text-purple-700 opacity-60 cursor-not-allowed">Delete Certificate Order</button>
             </div>
             <aside className="bg-white border rounded p-4 text-sm h-fit">
               <h2 className="font-semibold mb-3">Certificate Details</h2>
@@ -232,10 +232,10 @@ export default function Home() {
                 <p><span className="block text-xs text-gray-500">CREATED AT</span>{formatDate(selectedCertificate.createdAt)}</p>
                 <p><span className="block text-xs text-gray-500">ISSUE DATE</span>{formatDate(selectedCertificate.issuedAt)}</p>
                 <p><span className="block text-xs text-gray-500">EXPIRATION DATE</span>{formatDate(selectedCertificate.expiresAt)}</p>
-                <label className="flex items-center justify-between pt-2 border-t">
-                  <span className="text-xs text-gray-500">SEND EXPIRATION REMINDERS</span>
-                  <input type="checkbox" defaultChecked />
-                </label>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <label htmlFor="send-expiration-reminders" className="text-xs text-gray-500">SEND EXPIRATION REMINDERS</label>
+                  <input id="send-expiration-reminders" type="checkbox" defaultChecked />
+                </div>
               </div>
             </aside>
           </div>
