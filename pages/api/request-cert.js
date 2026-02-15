@@ -1,6 +1,7 @@
 import * as acme from 'acme-client';
 import axios from 'axios';
 import * as Sentry from '@sentry/nextjs';
+import { createHash } from 'crypto';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
 import { DEFAULT_ACMEDNS_BASE } from '../../lib/constants';
@@ -52,7 +53,7 @@ export default async function handler(req, res) {
       termsOfServiceAgreed: true,
       challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
         if (challenge.type !== 'dns-01') return;
-        const txt = acme.crypto.createHash('sha256').update(keyAuthorization).digest('base64url');
+        const txt = createHash('sha256').update(keyAuthorization).digest('base64url');
         await axios.post(
           `${ACME_DNS_API}/update`,
           { subdomain: certificate.acmeDnsSubdomain, txt },
