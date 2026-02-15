@@ -49,7 +49,14 @@ export default function Home() {
       headers: { Authorization: `Bearer ${activeToken}` }
     });
     const data = await res.json();
-    if (res.ok) setCertificates(data.certificates || []);
+    if (res.ok) {
+      setCertificates(data.certificates || []);
+    } else if (res.status === 401) {
+      // Authorization failed, clear token and show error
+      window.localStorage.removeItem('token');
+      setToken(null);
+      setError(data.error || 'Session expired. Please login again.');
+    }
   }
 
   useEffect(() => {
@@ -65,7 +72,14 @@ export default function Home() {
       body: JSON.stringify({ domain })
     });
     const data = await res.json();
-    if (!res.ok) return setError(data.error || 'Failed to register');
+    if (!res.ok) {
+      if (res.status === 401) {
+        window.localStorage.removeItem('token');
+        setToken(null);
+        return setError(data.error || 'Session expired. Please login again.');
+      }
+      return setError(data.error || 'Failed to register');
+    }
     setValidationData({ domain: data.domain || domain, cname: data.cname, includeWww, wildcard });
     setCurrentView('validate');
     await loadCertificates();
@@ -86,7 +100,14 @@ export default function Home() {
         signal: controller.signal
       });
       const data = await res.json();
-      if (!res.ok) return setError(data.error || 'Failed to generate');
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.localStorage.removeItem('token');
+          setToken(null);
+          return setError(data.error || 'Session expired. Please login again.');
+        }
+        return setError(data.error || 'Failed to generate');
+      }
       setSuccess('Certificate issued successfully.');
       setValidationData(null);
       setCurrentView('list');
