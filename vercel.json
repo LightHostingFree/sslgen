@@ -1,8 +1,15 @@
 {
-  "buildCommand": "npm run build",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "framework": "nextjs",
+
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+
+  "installCommand": "npm install",
+
   "functions": {
-    "pages/api/request-cert.js": {
-      "maxDuration": 300
+    "pages/api/**/*.js": {
+      "maxDuration": 60
     }
   }
 }
