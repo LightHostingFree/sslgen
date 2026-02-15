@@ -72,7 +72,7 @@ export default function Home() {
   async function generateCertificate(order = validationData) {
     setError('');
     setSuccess('');
-    if (!order?.domain) return setError('Failed to generate');
+    if (!order?.domain) return setError('Domain is required to generate certificate');
     setIsValidating(true);
     try {
       const res = await fetch('/api/request-cert', {
