@@ -74,11 +74,14 @@ export default function Home() {
     setSuccess('');
     if (!order?.domain) return setError('Domain is required to generate certificate');
     setIsValidating(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000);
     try {
       const res = await fetch('/api/request-cert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww })
+        body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww }),
+        signal: controller.signal
       });
       const data = await res.json();
       if (!res.ok) return setError(data.error || 'Failed to generate');
@@ -87,7 +90,10 @@ export default function Home() {
       setCurrentView('list');
       setDomain('');
       await loadCertificates();
+    } catch (requestError) {
+      setError(requestError.name === 'AbortError' ? 'Validation timed out. Please try again.' : 'Validation failed. Please try again.');
     } finally {
+      clearTimeout(timeoutId);
       setIsValidating(false);
     }
   }

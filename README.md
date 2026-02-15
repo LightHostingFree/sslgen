@@ -26,8 +26,9 @@ Setup guide:
 4. Start development server:
    - `npm run dev`
 5. Deploy to Vercel:
-   - Create a new Vercel project connected to this repository.
-   - Add runtime environment variables in Vercel Project Settings:
+    - Create a new Vercel project connected to this repository.
+    - This repository includes `vercel.json` to run `npm run build` and increase the `pages/api/request-cert.js` max duration for DNS validation.
+    - Add runtime environment variables in Vercel Project Settings:
      - `POSTGRES_PRISMA_URL`
      - `CLERK_SECRET_KEY`
      - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
