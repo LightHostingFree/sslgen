@@ -16,14 +16,18 @@ const CERT_VALIDITY_DAYS = Number(process.env.CERT_VALIDITY_DAYS || 90);
 async function validateDomainExists(domain) {
   try {
     await dns.resolve(domain, 'A');
-    return true;
+    return { exists: true, error: null };
   } catch (error) {
     // Try AAAA record (IPv6) if A record (IPv4) fails
     try {
       await dns.resolve(domain, 'AAAA');
-      return true;
+      return { exists: true, error: null };
     } catch (error2) {
-      return false;
+      // If DNS server refuses the query, we can't validate
+      if (error.code === 'ESERVFAIL' || error.code === 'EREFUSED' || error.code === 'ETIMEOUT') {
+        return { exists: null, error: 'DNS validation unavailable' };
+      }
+      return { exists: false, error: error.message };
     }
   }
 }
@@ -49,19 +53,19 @@ export default async function handler(req, res) {
     // Validate that the domain exists before attempting certificate generation
     const names = wildcard ? [`*.${normalizedDomain}`, normalizedDomain] : [normalizedDomain, ...(includeWww ? [`www.${normalizedDomain}`] : [])];
     
-    // Check if base domain resolves
-    const domainExists = await validateDomainExists(normalizedDomain);
-    if (!domainExists) {
+    // Check if base domain resolves (skip if DNS validation is unavailable)
+    const domainCheck = await validateDomainExists(normalizedDomain);
+    if (domainCheck.exists === false) {
       return res.status(400).json({ 
         error: `Domain ${normalizedDomain} does not exist or cannot be resolved. Please ensure the domain is registered and has valid DNS records before requesting a certificate.` 
       });
     }
 
-    // If including www subdomain, validate it exists too
+    // If including www subdomain, validate it exists too (skip if DNS validation is unavailable)
     if (includeWww && !wildcard) {
       const wwwDomain = `www.${normalizedDomain}`;
-      const wwwExists = await validateDomainExists(wwwDomain);
-      if (!wwwExists) {
+      const wwwCheck = await validateDomainExists(wwwDomain);
+      if (wwwCheck.exists === false) {
         return res.status(400).json({ 
           error: `Subdomain ${wwwDomain} does not exist or cannot be resolved. Either add DNS records for www.${normalizedDomain} or request a certificate without the www subdomain by setting includeWww to false.` 
         });
