@@ -17,6 +17,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [certificates, setCertificates] = useState([]);
+  const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
@@ -71,18 +72,24 @@ export default function Home() {
   async function generateCertificate(order = validationData) {
     setError('');
     setSuccess('');
-    const res = await fetch('/api/request-cert', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww })
-    });
-    const data = await res.json();
-    if (!res.ok) return setError(data.error || 'Failed to generate');
-    setSuccess('Certificate issued successfully.');
-    setValidationData(null);
-    setCurrentView('list');
-    setDomain('');
-    await loadCertificates();
+    if (!order?.domain) return setError('Failed to generate');
+    setIsValidating(true);
+    try {
+      const res = await fetch('/api/request-cert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww })
+      });
+      const data = await res.json();
+      if (!res.ok) return setError(data.error || 'Failed to generate');
+      setSuccess('Certificate issued successfully.');
+      setValidationData(null);
+      setCurrentView('list');
+      setDomain('');
+      await loadCertificates();
+    } finally {
+      setIsValidating(false);
+    }
   }
 
   function logout() {
@@ -168,8 +175,8 @@ export default function Home() {
             <div>Value: {cnameTarget}</div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => generateCertificate(validationData)} className="bg-green-600 text-white px-4 py-2 rounded">Continue Validation</button>
-            <button onClick={() => setCurrentView('list')} className="px-4 py-2 border rounded">Back to Certificates</button>
+            <button disabled={isValidating} onClick={() => generateCertificate(validationData)} className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-60 disabled:cursor-not-allowed">{isValidating ? 'Validating...' : 'Continue Validation'}</button>
+            <button disabled={isValidating} onClick={() => setCurrentView('list')} className="px-4 py-2 border rounded disabled:opacity-60 disabled:cursor-not-allowed">Back to Certificates</button>
           </div>
           {error && <p className="mt-3 text-red-600">{error}</p>}
         </div>
