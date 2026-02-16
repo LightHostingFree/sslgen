@@ -4,6 +4,14 @@ const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 const SERVER_REQUEST_MAX_DURATION_MS = 300000;
 const REQUEST_TIMEOUT_MS = SERVER_REQUEST_MAX_DURATION_MS + 10000;
 
+async function safeJsonParse(res) {
+  try {
+    return await res.json();
+  } catch {
+    return { error: `An unexpected error occurred (HTTP ${res.status})` };
+  }
+}
+
 export default function Home() {
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
@@ -37,7 +45,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
+    const data = await safeJsonParse(res);
     if (!res.ok) return setError(data.error || 'Request failed');
     window.localStorage.setItem('token', data.token);
     setToken(data.token);
@@ -48,7 +56,7 @@ export default function Home() {
     const res = await fetch(`/api/certificates${query}`, {
       headers: { Authorization: `Bearer ${activeToken}` }
     });
-    const data = await res.json();
+    const data = await safeJsonParse(res);
     if (res.ok) {
       setCertificates(data.certificates || []);
     } else if (res.status === 401) {
@@ -71,7 +79,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ domain })
     });
-    const data = await res.json();
+    const data = await safeJsonParse(res);
     if (!res.ok) {
       if (res.status === 401) {
         window.localStorage.removeItem('token');
@@ -99,7 +107,7 @@ export default function Home() {
         body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww }),
         signal: controller.signal
       });
-      const data = await res.json();
+      const data = await safeJsonParse(res);
       if (!res.ok) {
         if (res.status === 401) {
           window.localStorage.removeItem('token');
