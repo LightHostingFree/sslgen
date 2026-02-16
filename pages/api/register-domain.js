@@ -22,7 +22,7 @@ export default async function handler(req,res){
       return res.json({ domain: normalizedDomain, cname, status: existing.status });
     }
 
-    const r = await axios.post(`${ACMEDNS_BASE}/register`, {});
+    const r = await axios.post(`${ACMEDNS_BASE}/register`, {}, { timeout: 30000 });
     const reg = r.data;
     await prisma.certificate.create({
       data: {
