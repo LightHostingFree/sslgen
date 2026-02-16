@@ -142,10 +142,16 @@ export default async function handler(req, res) {
     Sentry.captureException(error);
     
     // Provide more specific error messages for DNS-related errors
-    let errorMessage = error?.response?.data || error.message;
+    let errorMessage = error.message || 'An error occurred';
     if (error.code === 'ENOTFOUND' || error.message?.includes('getaddrinfo ENOTFOUND')) {
       const failedDomain = error.hostname || normalizedDomain;
       errorMessage = `Domain ${failedDomain} could not be resolved. Please ensure the domain exists and has valid DNS records configured.`;
+    } else if (error?.response?.data) {
+      // Safely extract error from response data
+      const errorData = error.response.data;
+      errorMessage = (typeof errorData === 'object' && errorData !== null) 
+        ? JSON.stringify(errorData) 
+        : errorMessage;
     }
     
     return res.status(500).json({ error: errorMessage });

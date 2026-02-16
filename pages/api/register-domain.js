@@ -39,6 +39,10 @@ export default async function handler(req,res){
     return res.json({ domain: normalizedDomain, cname, status: 'ACTION_REQUIRED' });
   }catch(e){
     Sentry.captureException(e);
-    return res.status(500).json({ error: e.response?.data || e.message });
+    const errorData = e.response?.data;
+    const errorMessage = (errorData && typeof errorData === 'object' && errorData !== null) 
+      ? JSON.stringify(errorData) 
+      : (e.message || 'An error occurred');
+    return res.status(500).json({ error: errorMessage });
   }
 }
