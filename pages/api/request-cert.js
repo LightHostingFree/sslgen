@@ -12,6 +12,21 @@ const ACME_DNS_API = process.env.ACMEDNS_BASE || DEFAULT_ACMEDNS_BASE;
 const ACME_DIRECTORY = process.env.ACME_DIRECTORY;
 const DNS_PROPAGATION_DELAY_MS = Number(process.env.DNS_PROPAGATION_DELAY_MS || 20000);
 const CERT_VALIDITY_DAYS = Number(process.env.CERT_VALIDITY_DAYS || 90);
+const AXIOS_TIMEOUT_MS = 30000;
+const MAX_RETRIES = 3;
+
+async function axiosWithRetry(config, retries = MAX_RETRIES) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await axios({ timeout: AXIOS_TIMEOUT_MS, ...config });
+    } catch (err) {
+      const status = err.response?.status;
+      const isRetryable = !status || status === 502 || status === 503 || status === 504 || err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT';
+      if (attempt >= retries || !isRetryable) throw err;
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+    }
+  }
+}
 
 async function validateDomainExists(domain) {
   const isServerError = (err) => ['ESERVFAIL', 'EREFUSED', 'ETIMEOUT'].includes(err?.code);
@@ -97,16 +112,15 @@ export default async function handler(req, res) {
       challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
         if (challenge.type !== 'dns-01') return;
         const txt = createHash('sha256').update(keyAuthorization).digest('base64url');
-        await axios.post(
-          `${ACME_DNS_API}/update`,
-          { subdomain: certificate.acmeDnsSubdomain, txt },
-          {
-            headers: {
-              'X-Api-User': decryptAtRest(certificate.acmeDnsUsername),
-              'X-Api-Key': decryptAtRest(certificate.acmeDnsPassword)
-            }
+        await axiosWithRetry({
+          method: 'post',
+          url: `${ACME_DNS_API}/update`,
+          data: { subdomain: certificate.acmeDnsSubdomain, txt },
+          headers: {
+            'X-Api-User': decryptAtRest(certificate.acmeDnsUsername),
+            'X-Api-Key': decryptAtRest(certificate.acmeDnsPassword)
           }
-        );
+        });
         await new Promise((resolve) => setTimeout(resolve, DNS_PROPAGATION_DELAY_MS));
       },
       challengeRemoveFn: async () => {}
@@ -143,7 +157,9 @@ export default async function handler(req, res) {
     
     // Provide more specific error messages for DNS-related errors
     let errorMessage = error.message || 'An error occurred';
-    if (error.code === 'ENOTFOUND' || error.message?.includes('getaddrinfo ENOTFOUND')) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      errorMessage = 'The request to the ACME DNS service timed out. Please try again.';
+    } else if (error.code === 'ENOTFOUND' || error.message?.includes('getaddrinfo ENOTFOUND')) {
       const failedDomain = error.hostname || normalizedDomain;
       errorMessage = `Domain ${failedDomain} could not be resolved. Please ensure the domain exists and has valid DNS records configured.`;
     } else if (error?.response?.data) {

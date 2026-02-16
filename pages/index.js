@@ -8,6 +8,9 @@ async function safeJsonParse(res) {
   try {
     return await res.json();
   } catch {
+    if (res.status === 504) {
+      return { error: 'The server took too long to respond (HTTP 504). This can happen during certificate validation. Please try again.' };
+    }
     return { error: `An unexpected error occurred (HTTP ${res.status})` };
   }
 }

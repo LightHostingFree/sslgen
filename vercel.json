@@ -9,7 +9,7 @@
 
   "functions": {
     "pages/api/**/*.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   }
 }
