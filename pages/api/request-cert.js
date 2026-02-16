@@ -21,7 +21,8 @@ async function axiosWithRetry(config, retries = MAX_RETRIES) {
       return await axios({ timeout: AXIOS_TIMEOUT_MS, ...config });
     } catch (err) {
       const status = err.response?.status;
-      const isRetryable = !status || status === 502 || status === 503 || status === 504 || err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT';
+      const isNetworkError = err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT' || err.code === 'ECONNRESET' || err.code === 'ECONNREFUSED';
+      const isRetryable = isNetworkError || status === 502 || status === 503 || status === 504;
       if (attempt >= retries || !isRetryable) throw err;
       await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
     }
