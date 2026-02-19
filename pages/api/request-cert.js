@@ -110,6 +110,7 @@ export default async function handler(req, res) {
       csr,
       email: accountEmail,
       termsOfServiceAgreed: true,
+      challengePriority: ['dns-01'],
       challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
         if (challenge.type !== 'dns-01') return;
         const txt = createHash('sha256').update(keyAuthorization).digest('base64url');
