@@ -112,15 +112,45 @@ export default async function handler(req, res) {
       challengePriority: ['dns-01'],
       challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
         if (challenge.type !== 'dns-01') return;
-        await axiosWithRetry({
-          method: 'post',
-          url: `${ACME_DNS_API}/update`,
-          data: { subdomain: certificate.acmeDnsSubdomain, txt: keyAuthorization },
-          headers: {
-            'X-Api-User': decryptAtRest(certificate.acmeDnsUsername),
-            'X-Api-Key': decryptAtRest(certificate.acmeDnsPassword)
+        try {
+          await axiosWithRetry({
+            method: 'post',
+            url: `${ACME_DNS_API}/update`,
+            data: { subdomain: certificate.acmeDnsSubdomain, txt: keyAuthorization },
+            headers: {
+              'X-Api-User': decryptAtRest(certificate.acmeDnsUsername),
+              'X-Api-Key': decryptAtRest(certificate.acmeDnsPassword)
+            }
+          });
+        } catch (err) {
+          if (err.response?.status === 403) {
+            // acme-dns server restarted (e.g. Render free tier inactivity shutdown) and lost credentials
+            let reg;
+            try {
+              reg = (await axiosWithRetry({ method: 'post', url: `${ACME_DNS_API}/register`, data: {} })).data;
+            } catch (registerErr) {
+              throw new Error('DNS validation service is unavailable. Please try again later.');
+            }
+            await prisma.certificate.update({
+              where: { id: certificate.id },
+              data: {
+                acmeDnsSubdomain: reg.subdomain,
+                acmeDnsUsername: encryptAtRest(reg.username),
+                acmeDnsPassword: encryptAtRest(reg.password),
+                cnameTarget: reg.fulldomain,
+                status: 'ACTION_REQUIRED'
+              }
+            });
+            const reregError = new Error(
+              `The DNS validation service restarted and lost your registration. ` +
+              `Please update your CNAME record: _acme-challenge.${normalizedDomain} -> ${reg.fulldomain}, ` +
+              `then try again.`
+            );
+            reregError.reregistered = true;
+            throw reregError;
           }
-        });
+          throw err;
+        }
         await new Promise((resolve) => setTimeout(resolve, DNS_PROPAGATION_DELAY_MS));
       },
       challengeRemoveFn: async () => {}
@@ -147,7 +177,7 @@ export default async function handler(req, res) {
       status: 'ISSUED'
     });
   } catch (error) {
-    if (normalizedDomain) {
+    if (normalizedDomain && !error.reregistered) {
       await prisma.certificate.updateMany({
         where: { userId: authUser.userId, domain: normalizedDomain },
         data: { status: 'FAILED' }
