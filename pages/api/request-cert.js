@@ -1,7 +1,6 @@
 import * as acme from 'acme-client';
 import axios from 'axios';
 import * as Sentry from '@sentry/nextjs';
-import { createHash } from 'crypto';
 import { promises as dns } from 'dns';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
@@ -113,11 +112,10 @@ export default async function handler(req, res) {
       challengePriority: ['dns-01'],
       challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
         if (challenge.type !== 'dns-01') return;
-        const txt = createHash('sha256').update(keyAuthorization).digest('base64url');
         await axiosWithRetry({
           method: 'post',
           url: `${ACME_DNS_API}/update`,
-          data: { subdomain: certificate.acmeDnsSubdomain, txt },
+          data: { subdomain: certificate.acmeDnsSubdomain, txt: keyAuthorization },
           headers: {
             'X-Api-User': decryptAtRest(certificate.acmeDnsUsername),
             'X-Api-Key': decryptAtRest(certificate.acmeDnsPassword)
