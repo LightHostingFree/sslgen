@@ -73,11 +73,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, and ACME_DIRECTORY must be configured' });
   }
 
-  let certificate = null;
   try {
-    certificate = await prisma.certificate.findFirst({
-      where: { userId: authUser.userId, domain: normalizedDomain },
-      orderBy: { createdAt: 'desc' }
+    const certificate = await prisma.certificate.findUnique({
+      where: { userId_domain: { userId: authUser.userId, domain: normalizedDomain } }
     });
     if (!certificate) return res.status(404).json({ error: 'Register domain first' });
 
@@ -123,13 +121,9 @@ export default async function handler(req, res) {
 
     const issuedAt = new Date();
     const expiresAt = new Date(issuedAt.getTime() + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
-    // Create a new record so previous certificates are preserved in history.
-    // The list API returns only the latest record per domain.
-    await prisma.certificate.create({
+    await prisma.certificate.update({
+      where: { id: certificate.id },
       data: {
-        userId: authUser.userId,
-        domain: normalizedDomain,
-        cnameTarget: certificate.cnameTarget,
         issuedAt,
         expiresAt,
         certificatePem: encryptAtRest(certificatePem),
@@ -146,9 +140,9 @@ export default async function handler(req, res) {
       status: 'ISSUED'
     });
   } catch (error) {
-    if (certificate) {
-      await prisma.certificate.update({
-        where: { id: certificate.id },
+    if (normalizedDomain) {
+      await prisma.certificate.updateMany({
+        where: { userId: authUser.userId, domain: normalizedDomain },
         data: { status: 'FAILED' }
       });
     }

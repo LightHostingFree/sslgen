@@ -34,18 +34,7 @@ export default async function handler(req, res) {
     })
   );
 
-  const deduped = deduplicateByDomain(updated);
-
   return res.json({
-    certificates: statusFilter ? deduped.filter((certificate) => certificate.status === statusFilter) : deduped
-  });
-}
-
-function deduplicateByDomain(certificates) {
-  const seen = new Set();
-  return certificates.filter((certificate) => {
-    if (seen.has(certificate.domain)) return false;
-    seen.add(certificate.domain);
-    return true;
+    certificates: statusFilter ? updated.filter((certificate) => certificate.status === statusFilter) : updated
   });
 }
