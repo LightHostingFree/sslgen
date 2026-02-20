@@ -66,11 +66,14 @@ export default async function handler(req, res) {
   const authUser = requireAuth(req, res);
   if (!authUser) return;
 
-  const { domain, email, wildcard = false, includeWww = true, ca } = req.body || {};
+  const { domain, email, wildcard = false, includeWww = true, ca, eabKeyId, eabHmacKey } = req.body || {};
   const normalizedDomain = String(domain || '').trim().toLowerCase();
   if (!normalizedDomain) return res.status(400).json({ error: 'domain required' });
   if (ca && ca !== 'google') {
     return res.status(400).json({ error: "Invalid ca value. Supported values: 'google'" });
+  }
+  if (ca === 'google' && (!eabKeyId || !eabHmacKey)) {
+    return res.status(400).json({ error: 'eabKeyId and eabHmacKey are required for Google Trust Services' });
   }
   const directoryUrl = ca === 'google' ? GOOGLE_TRUST_ACME_DIRECTORY : ACME_DIRECTORY;
   if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID || !directoryUrl) {
@@ -93,7 +96,10 @@ export default async function handler(req, res) {
 
     await client.createAccount({
       termsOfServiceAgreed: true,
-      contact: [`mailto:${accountEmail}`]
+      contact: [`mailto:${accountEmail}`],
+      // EAB (External Account Binding): kid = Key Identifier, hmacKey = HMAC key
+      // required by Google Trust Services to link the ACME account to a pre-registered GTS account.
+      ...(ca === 'google' && { externalAccountBinding: { kid: eabKeyId, hmacKey: eabHmacKey } })
     });
 
     const [privateKey, csr] = await acme.crypto.createCsr({
