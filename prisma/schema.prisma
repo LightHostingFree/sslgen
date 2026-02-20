@@ -13,6 +13,17 @@ model User {
   passwordHash String   @map("password")
   createdAt DateTime @default(now())
   certificates Certificate[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Certificate {
