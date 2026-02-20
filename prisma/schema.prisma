@@ -19,9 +19,6 @@ model Certificate {
   id         Int      @id @default(autoincrement())
   userId    Int
   domain    String
-  acmeDnsSubdomain String
-  acmeDnsUsername  String
-  acmeDnsPassword  String
   cnameTarget String
   status    String   @default("pending")
   issuedAt  DateTime?

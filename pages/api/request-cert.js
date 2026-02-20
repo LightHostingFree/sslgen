@@ -4,10 +4,11 @@ import * as Sentry from '@sentry/nextjs';
 import { promises as dns } from 'dns';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
-import { DEFAULT_ACMEDNS_BASE } from '../../lib/constants';
-import { decryptAtRest, encryptAtRest } from '../../lib/crypto';
+import { CLOUDFLARE_API_BASE } from '../../lib/constants';
+import { encryptAtRest } from '../../lib/crypto';
 
-const ACME_DNS_API = process.env.ACMEDNS_BASE || DEFAULT_ACMEDNS_BASE;
+const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+const CLOUDFLARE_ZONE_ID = process.env.CLOUDFLARE_ZONE_ID;
 const ACME_DIRECTORY = process.env.ACME_DIRECTORY;
 const DNS_PROPAGATION_DELAY_MS = Number(process.env.DNS_PROPAGATION_DELAY_MS || 20000);
 const CERT_VALIDITY_DAYS = Number(process.env.CERT_VALIDITY_DAYS || 90);
@@ -49,6 +50,39 @@ async function validateDomainExists(domain) {
   }
 }
 
+async function createCloudflareTxtRecord(name, content) {
+  try {
+    const resp = await axiosWithRetry({
+      method: 'post',
+      url: `${CLOUDFLARE_API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/dns_records`,
+      data: { type: 'TXT', name, content, ttl: 60 },
+      headers: { Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` }
+    });
+    return resp.data?.result?.id;
+  } catch (err) {
+    const status = err.response?.status;
+    if (status === 401) throw new Error('Cloudflare authentication failed. Check CLOUDFLARE_API_TOKEN.');
+    if (status === 403) throw new Error('Cloudflare API token lacks DNS edit permission for CLOUDFLARE_ZONE_ID.');
+    throw err;
+  }
+}
+
+async function deleteCloudflareTxtRecord(recordId) {
+  if (!recordId) return;
+  try {
+    await axiosWithRetry({
+      method: 'delete',
+      url: `${CLOUDFLARE_API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/dns_records/${recordId}`,
+      headers: { Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` }
+    });
+  } catch (err) {
+    const status = err.response?.status;
+    if (status === 401) throw new Error('Cloudflare authentication failed. Check CLOUDFLARE_API_TOKEN.');
+    if (status === 403) throw new Error('Cloudflare API token lacks DNS edit permission for CLOUDFLARE_ZONE_ID.');
+    throw err;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const authUser = requireAuth(req, res);
@@ -57,8 +91,8 @@ export default async function handler(req, res) {
   const { domain, email, wildcard = false, includeWww = true } = req.body || {};
   const normalizedDomain = String(domain || '').trim().toLowerCase();
   if (!normalizedDomain) return res.status(400).json({ error: 'domain required' });
-  if (!ACME_DNS_API || !ACME_DIRECTORY) {
-    return res.status(500).json({ error: 'ACMEDNS_BASE and ACME_DIRECTORY must be configured' });
+  if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID || !ACME_DIRECTORY) {
+    return res.status(500).json({ error: 'CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, and ACME_DIRECTORY must be configured' });
   }
 
   try {
@@ -105,6 +139,7 @@ export default async function handler(req, res) {
       altNames: names
     });
 
+    const txtRecordIds = new Map();
     const certificatePem = await client.auto({
       csr,
       email: accountEmail,
@@ -112,48 +147,18 @@ export default async function handler(req, res) {
       challengePriority: ['dns-01'],
       challengeCreateFn: async (_authz, challenge, keyAuthorization) => {
         if (challenge.type !== 'dns-01') return;
-        try {
-          await axiosWithRetry({
-            method: 'post',
-            url: `${ACME_DNS_API}/update`,
-            data: { subdomain: certificate.acmeDnsSubdomain, txt: keyAuthorization },
-            headers: {
-              'X-Api-User': decryptAtRest(certificate.acmeDnsUsername),
-              'X-Api-Key': decryptAtRest(certificate.acmeDnsPassword)
-            }
-          });
-        } catch (err) {
-          if (err.response?.status === 403) {
-            // acme-dns server restarted (e.g. Render free tier inactivity shutdown) and lost credentials
-            let reg;
-            try {
-              reg = (await axiosWithRetry({ method: 'post', url: `${ACME_DNS_API}/register`, data: {} })).data;
-            } catch (registerErr) {
-              throw new Error('DNS validation service is unavailable. Please try again later.');
-            }
-            await prisma.certificate.update({
-              where: { id: certificate.id },
-              data: {
-                acmeDnsSubdomain: reg.subdomain,
-                acmeDnsUsername: encryptAtRest(reg.username),
-                acmeDnsPassword: encryptAtRest(reg.password),
-                cnameTarget: reg.fulldomain,
-                status: 'ACTION_REQUIRED'
-              }
-            });
-            const reregError = new Error(
-              `The DNS validation service restarted and lost your registration. ` +
-              `Please update your CNAME record: _acme-challenge.${normalizedDomain} -> ${reg.fulldomain}, ` +
-              `then try again.`
-            );
-            reregError.reregistered = true;
-            throw reregError;
-          }
-          throw err;
-        }
+        // Create TXT record at the cnameTarget subdomain in the Cloudflare validation zone.
+        // The user's _acme-challenge CNAME points here, so the ACME CA will follow it.
+        const recordId = await createCloudflareTxtRecord(certificate.cnameTarget, keyAuthorization);
+        txtRecordIds.set(keyAuthorization, recordId);
         await new Promise((resolve) => setTimeout(resolve, DNS_PROPAGATION_DELAY_MS));
       },
-      challengeRemoveFn: async () => {}
+      challengeRemoveFn: async (_authz, challenge, keyAuthorization) => {
+        if (challenge.type !== 'dns-01') return;
+        const recordId = txtRecordIds.get(keyAuthorization);
+        await deleteCloudflareTxtRecord(recordId);
+        txtRecordIds.delete(keyAuthorization);
+      }
     });
 
     const issuedAt = new Date();
@@ -177,7 +182,7 @@ export default async function handler(req, res) {
       status: 'ISSUED'
     });
   } catch (error) {
-    if (normalizedDomain && !error.reregistered) {
+    if (normalizedDomain) {
       await prisma.certificate.updateMany({
         where: { userId: authUser.userId, domain: normalizedDomain },
         data: { status: 'FAILED' }
@@ -188,7 +193,7 @@ export default async function handler(req, res) {
     // Provide more specific error messages for DNS-related errors
     let errorMessage = error.message || 'An error occurred';
     if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-      errorMessage = 'The request to the ACME DNS service timed out. Please try again.';
+      errorMessage = 'The request timed out. Please try again.';
     } else if (error.code === 'ENOTFOUND' || error.message?.includes('getaddrinfo ENOTFOUND')) {
       const failedDomain = error.hostname || normalizedDomain;
       errorMessage = `Domain ${failedDomain} could not be resolved. Please ensure the domain exists and has valid DNS records configured.`;

@@ -1,9 +1,9 @@
-import axios from 'axios';
+import { randomUUID } from 'crypto';
 import * as Sentry from '@sentry/nextjs';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
-import { DEFAULT_ACMEDNS_BASE } from '../../lib/constants';
-import { encryptAtRest } from '../../lib/crypto';
+
+const CLOUDFLARE_VALIDATION_DOMAIN = process.env.CLOUDFLARE_VALIDATION_DOMAIN;
 
 export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -12,8 +12,7 @@ export default async function handler(req,res){
   const { domain } = req.body;
   const normalizedDomain = String(domain || '').trim().toLowerCase();
   if(!normalizedDomain) return res.status(400).json({ error: 'domain required' });
-  const ACMEDNS_BASE = process.env.ACMEDNS_BASE || DEFAULT_ACMEDNS_BASE;
-  if (!ACMEDNS_BASE) return res.status(500).json({ error: 'ACMEDNS_BASE must be configured' });
+  if (!CLOUDFLARE_VALIDATION_DOMAIN) return res.status(500).json({ error: 'CLOUDFLARE_VALIDATION_DOMAIN must be configured' });
   try{
     const existing = await prisma.certificate.findUnique({ where: { userId_domain: { userId: authUser.userId, domain: normalizedDomain } } });
 
@@ -22,20 +21,20 @@ export default async function handler(req,res){
       return res.json({ domain: normalizedDomain, cname, status: existing.status });
     }
 
-    const r = await axios.post(`${ACMEDNS_BASE}/register`, {}, { timeout: 30000 });
-    const reg = r.data;
+    // Generate a unique subdomain in the Cloudflare validation zone for this domain.
+    // This UUID-based subdomain is the CNAME target the user will point their
+    // _acme-challenge record at, allowing the system to set TXT records there
+    // during ACME DNS-01 challenges without touching the user's own DNS zone.
+    const cnameTarget = `${randomUUID()}.${CLOUDFLARE_VALIDATION_DOMAIN}`;
     await prisma.certificate.create({
       data: {
         userId: authUser.userId,
-          domain: normalizedDomain,
-          acmeDnsSubdomain: reg.subdomain,
-          acmeDnsUsername: encryptAtRest(reg.username),
-          acmeDnsPassword: encryptAtRest(reg.password),
-          cnameTarget: reg.fulldomain,
-          status: 'ACTION_REQUIRED'
-        }
-      });
-    const cname = `_acme-challenge.${normalizedDomain} -> ${reg.fulldomain}`;
+        domain: normalizedDomain,
+        cnameTarget,
+        status: 'ACTION_REQUIRED'
+      }
+    });
+    const cname = `_acme-challenge.${normalizedDomain} -> ${cnameTarget}`;
     return res.json({ domain: normalizedDomain, cname, status: 'ACTION_REQUIRED' });
   }catch(e){
     Sentry.captureException(e);
