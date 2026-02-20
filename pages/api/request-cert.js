@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as Sentry from '@sentry/nextjs';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
-import { CLOUDFLARE_API_BASE } from '../../lib/constants';
+import { CLOUDFLARE_API_BASE, GOOGLE_TRUST_ACME_DIRECTORY } from '../../lib/constants';
 import { encryptAtRest } from '../../lib/crypto';
 
 const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
@@ -66,10 +66,17 @@ export default async function handler(req, res) {
   const authUser = requireAuth(req, res);
   if (!authUser) return;
 
-  const { domain, email, wildcard = false, includeWww = true } = req.body || {};
+  const { domain, email, wildcard = false, includeWww = true, ca, eabKeyId, eabHmacKey } = req.body || {};
   const normalizedDomain = String(domain || '').trim().toLowerCase();
   if (!normalizedDomain) return res.status(400).json({ error: 'domain required' });
-  if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID || !ACME_DIRECTORY) {
+  if (ca && ca !== 'google') {
+    return res.status(400).json({ error: "Invalid ca value. Supported values: 'google'" });
+  }
+  if (ca === 'google' && (!eabKeyId || !eabHmacKey)) {
+    return res.status(400).json({ error: 'eabKeyId and eabHmacKey are required for Google Trust Services' });
+  }
+  const directoryUrl = ca === 'google' ? GOOGLE_TRUST_ACME_DIRECTORY : ACME_DIRECTORY;
+  if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID || !directoryUrl) {
     return res.status(500).json({ error: 'CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, and ACME_DIRECTORY must be configured' });
   }
 
@@ -83,17 +90,20 @@ export default async function handler(req, res) {
     
     const accountEmail = email || authUser.email;
     const client = new acme.Client({
-      directoryUrl: ACME_DIRECTORY,
+      directoryUrl,
       accountKey: await acme.crypto.createPrivateKey()
     });
 
     await client.createAccount({
       termsOfServiceAgreed: true,
-      contact: [`mailto:${accountEmail}`]
+      contact: [`mailto:${accountEmail}`],
+      // EAB (External Account Binding): kid = Key Identifier, hmacKey = HMAC key
+      // required by Google Trust Services to link the ACME account to a pre-registered GTS account.
+      ...(ca === 'google' && { externalAccountBinding: { kid: eabKeyId, hmacKey: eabHmacKey } })
     });
 
     const [privateKey, csr] = await acme.crypto.createCsr({
-      commonName: names[0],
+      commonName: normalizedDomain,
       altNames: names
     });
 

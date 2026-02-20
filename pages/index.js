@@ -67,6 +67,9 @@ export default function Home() {
   const [domain, setDomain] = useState('');
   const [wildcard, setWildcard] = useState(false);
   const [includeWww, setIncludeWww] = useState(true);
+  const [ca, setCa] = useState('');
+  const [eabKeyId, setEabKeyId] = useState('');
+  const [eabHmacKey, setEabHmacKey] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [currentView, setCurrentView] = useState('list');
   const [filter, setFilter] = useState('ALL');
@@ -77,6 +80,7 @@ export default function Home() {
   const [certificates, setCertificates] = useState([]);
   const [isValidating, setIsValidating] = useState(false);
   const [certKeys, setCertKeys] = useState(null);
+  const [dnsOpen, setDnsOpen] = useState(true);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
@@ -137,7 +141,7 @@ export default function Home() {
       }
       return setError(data.error || 'Failed to register');
     }
-    setValidationData({ domain: data.domain || domain, cname: data.cname, includeWww, wildcard });
+    setValidationData({ domain: data.domain || domain, cname: data.cname, includeWww, wildcard, createdAt: new Date().toISOString(), ca, eabKeyId, eabHmacKey });
     setCurrentView('validate');
     await loadCertificates();
   }
@@ -153,7 +157,7 @@ export default function Home() {
       const res = await fetch('/api/request-cert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww }),
+        body: JSON.stringify({ domain: order.domain, wildcard: order.wildcard, includeWww: order.includeWww, ca: order.ca, eabKeyId: order.eabKeyId, eabHmacKey: order.eabHmacKey }),
         signal: controller.signal
       });
       const data = await safeJsonParse(res);
@@ -224,6 +228,23 @@ export default function Home() {
   function formatDate(value) {
     if (!value) return '-';
     return new Date(value).toLocaleDateString();
+  }
+
+  function formatDateTime(value) {
+    if (!value) return '-';
+    const d = new Date(value);
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const hours = String(d.getUTCHours()).padStart(2, '0');
+    const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
+  }
+
+  function handleCaChange(value) {
+    setCa(value);
+    setEabKeyId('');
+    setEabHmacKey('');
   }
 
   function filteredCertificates() {
@@ -362,15 +383,51 @@ export default function Home() {
                 <span>{advancedOpen ? '▾' : '▸'}</span> Advanced options
               </button>
               {advancedOpen && (
-                <label className="mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={wildcard}
-                    onChange={(e) => setWildcard(e.target.checked)}
-                    className="w-4 h-4 accent-indigo-600"
-                  />
-                  <span className="text-sm text-gray-700">Request wildcard certificate (*.example.com)</span>
-                </label>
+                <div className="mt-3 space-y-3">
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={wildcard}
+                      onChange={(e) => setWildcard(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-600"
+                    />
+                    <span className="text-sm text-gray-700">Request wildcard certificate (*.example.com)</span>
+                  </label>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Certificate Authority</label>
+                    <select
+                      value={ca}
+                      onChange={(e) => handleCaChange(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm bg-white"
+                    >
+                      <option value="">Default (Let&apos;s Encrypt)</option>
+                      <option value="google">Google Trust Services</option>
+                    </select>
+                  </div>
+                  {ca === 'google' && (
+                    <div className="space-y-3 px-4 py-4 rounded-xl border border-indigo-100 bg-indigo-50">
+                      <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Google Trust Services — EAB Credentials</p>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">EAB Key ID</label>
+                        <input
+                          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm"
+                          placeholder="eab-key-id"
+                          value={eabKeyId}
+                          onChange={(e) => setEabKeyId(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">EAB HMAC Key</label>
+                        <input
+                          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm"
+                          placeholder="eab-hmac-key"
+                          value={eabHmacKey}
+                          onChange={(e) => setEabHmacKey(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <button
@@ -393,58 +450,119 @@ export default function Home() {
   if (currentView === 'validate' && validationData) {
     const cnameTarget = validationData.cname.split(' -> ')[1] || validationData.cname;
     return (
-      <PageShell maxWidth="max-w-2xl" token={token} logout={logout}>
+      <PageShell token={token} logout={logout}>
         <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
           FREE SSL CERTIFICATES
         </div>
-        <div className="bg-white rounded-2xl shadow border border-gray-100">
-          <div className="px-6 py-5 border-b border-gray-100">
-            <h1 className="text-lg font-bold text-gray-800">Validate Your Domain</h1>
-            <p className="text-gray-500 text-sm mt-1">Add the DNS record below, wait for propagation, then click continue.</p>
-          </div>
-          <div className="px-6 py-6 space-y-5">
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50 overflow-hidden">
-              <div className="px-4 py-2 bg-indigo-100 border-b border-indigo-200">
-                <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">DNS Record to Add</span>
-              </div>
-              <div className="px-4 py-4 space-y-3 font-mono text-sm">
-                <div className="flex items-start gap-3">
-                  <span className="text-gray-400 w-28 shrink-0 text-xs font-sans">Record Type</span>
-                  <span className="text-gray-800 font-bold">CNAME</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-gray-400 w-28 shrink-0 text-xs font-sans">Name</span>
-                  <span className="text-indigo-700 break-all text-xs">_acme-challenge.{validationData.domain}</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-gray-400 w-28 shrink-0 text-xs font-sans">Value</span>
-                  <span className="text-indigo-700 break-all text-xs">{cnameTarget}</span>
-                </div>
+        <h1 className="text-xl font-bold text-gray-800 mb-5">
+          Validate your domain name <span className="text-indigo-600">{validationData.domain}</span>
+        </h1>
+        <div className="flex gap-5 items-start">
+          <div className="flex-1 min-w-0 space-y-4">
+            <div className="flex gap-3 px-4 py-4 rounded-xl bg-red-50 border border-red-200 text-sm text-gray-700">
+              <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zm9-3.75a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-gray-800">Please set up the following CNAME record on your domain name.</p>
+                <p className="text-gray-500 mt-0.5">This record is necessary for the certificate provider to verify you own the domain name.</p>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
               <button
-                disabled={isValidating}
-                onClick={() => generateCertificate(validationData)}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-3 rounded-xl transition shadow-md shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                onClick={() => setDnsOpen((v) => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 transition"
               >
-                {isValidating && <Spinner />}
-                {isValidating ? 'Validating…' : 'Continue Validation'}
+                <div className="flex items-center gap-2.5">
+                  <span className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs leading-none">✕</span>
+                  <span className="font-semibold text-gray-800 text-sm">Setup DNS Record for {validationData.domain}</span>
+                </div>
+                <svg className={`w-5 h-5 text-gray-400 transition-transform ${dnsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
-              <button
-                disabled={isValidating}
-                onClick={() => setCurrentView('list')}
-                className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                Back
-              </button>
+              {dnsOpen && (
+                <div className="border-t border-gray-200">
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y divide-gray-100">
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-gray-700 w-48">Record Name</td>
+                        <td className="px-4 py-3 text-gray-600">_acme-challenge</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-gray-700">Domain</td>
+                        <td className="px-4 py-3 text-gray-600">{validationData.domain}</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-gray-700">Destination</td>
+                        <td className="px-4 py-3 text-gray-600 break-all">{cnameTarget}</td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-gray-700">Current Destination</td>
+                        <td className="px-4 py-3 text-gray-500">
+                          <span className="flex items-center gap-2">
+                            (no CNAME found)
+                            <span className="px-2 py-0.5 rounded bg-red-500 text-white text-xs font-semibold">Not Ready</span>
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="mx-4 mb-4 mt-2 flex gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-gray-700">
+                    <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <div>
+                      <p className="font-semibold text-gray-800">We did not detect any nameservers on your domain name.</p>
+                      <p className="text-gray-500 mt-0.5">Please make sure that your domain name is active and set up correctly with the provider of the domain name.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+            <p className="text-sm text-gray-500">Please note that DNS changes can take a few hours to take effect.</p>
             {error && (
               <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
                 {error}
               </div>
             )}
+            <div className="flex gap-3">
+              <button
+                disabled={isValidating}
+                onClick={() => generateCertificate(validationData)}
+                className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-md shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+                {isValidating && <Spinner />}
+                {isValidating ? 'Validating…' : 'Request Certificate'}
+              </button>
+              <button
+                disabled={isValidating}
+                onClick={() => setCurrentView('list')}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Back
+              </button>
+            </div>
           </div>
+          <aside className="w-64 shrink-0 bg-white rounded-2xl border border-gray-100 shadow p-5 text-sm">
+            <h2 className="font-bold text-gray-800 mb-4">Certificate Details</h2>
+            <div className="space-y-4">
+              {[
+                { label: 'DOMAIN', value: validationData.domain },
+                { label: 'CERTIFICATE PROVIDER', value: validationData.ca === 'google' ? 'Google Trust Services' : "Let's Encrypt" },
+                { label: 'STATUS', value: 'Action Required' },
+                { label: 'CREATED AT', value: formatDateTime(validationData.createdAt) }
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <span className="block text-xs text-gray-400 mb-0.5 tracking-wider font-semibold">{label}</span>
+                  <span className="text-gray-700">{value}</span>
+                </div>
+              ))}
+            </div>
+          </aside>
         </div>
       </PageShell>
     );
@@ -652,7 +770,8 @@ export default function Home() {
                             domain: item.domain,
                             cname: `_acme-challenge.${item.domain} -> ${item.cnameTarget}`,
                             includeWww: true,
-                            wildcard: false
+                            wildcard: false,
+                            createdAt: item.createdAt
                           });
                           setCurrentView('validate');
                           return;
