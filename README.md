@@ -1,60 +1,127 @@
-SSL Certificate Platform (Next.js + ACME DNS-01 + acme-dns + Clerk-ready env config)
+# SSL Certificate Platform
 
-Features:
-- Register/Login API secured with `CLERK_SECRET_KEY`
-- User-scoped certificate dashboard
-- ACME DNS-01 workflow using acme-dns (`ACMEDNS_BASE`)
-- Domain registration endpoint that returns required CNAME record
-- Certificate generation endpoint (status: `pending`, `active`, `expiring`, `expired`)
-- Stored data (PostgreSQL via Prisma):
-  - Users
-  - Certificates
+Production-ready SSL certificate management built with **Next.js**, **Prisma**, and **ACME DNS-01** using **acme-dns**.
+
+## ✨ Highlights
+
+- 🔐 Auth-ready API with Clerk-style environment setup
+- 🌐 Domain onboarding flow that returns required DNS CNAME records
+- 📜 Certificate issuance + renewal endpoints with lifecycle states:
+  - `pending`
+  - `active`
+  - `expiring`
+  - `expired`
+- 📊 User-scoped certificate dashboard
+- 🧱 PostgreSQL persistence (Prisma) for:
+  - users
+  - certificates
   - acme-dns credentials
-  - Expiry and PEM data
+  - expiry + PEM data
+- 🛡️ At-rest encryption for certificate/acme-dns secrets via `CERT_ENCRYPTION_KEY`
 
-Setup guide:
-1. Install dependencies:
-   - `npm install`
-2. Ensure required environment variables are configured in your deployment platform/runtime:
+---
+
+## 🧭 Tech Stack
+
+- **Frontend / API**: Next.js (`pages` router)
+- **Database**: PostgreSQL + Prisma
+- **Certificate flow**: ACME DNS-01 + acme-dns
+- **Auth integration**: Clerk-compatible secret/public env keys
+- **Observability**: Optional Sentry integration
+
+---
+
+## 🚀 Quick Start
+
+### 1) Install dependencies
+
+```bash
+npm install
+```
+
+### 2) Configure environment variables
+
+At minimum, set:
+
+- `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `ACMEDNS_BASE`
+- `ACME_DIRECTORY`
+- `POSTGRES_PRISMA_URL`
+- `CERT_ENCRYPTION_KEY`
+
+### 3) Initialize database schema
+
+```bash
+npx prisma db push
+```
+
+### 4) Run locally
+
+```bash
+npm run dev
+```
+
+---
+
+## ⚙️ Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `CLERK_SECRET_KEY` | Yes | - | Backend auth secret key |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | - | Clerk publishable key exposed to browser |
+| `NEXT_PUBLIC_APP_URL` | No | - | Public base URL for app |
+| `ACMEDNS_BASE` | Yes* | `https://acme.getfreeweb.site` (when unset) | acme-dns API base URL |
+| `ACME_DIRECTORY` | Yes | - | ACME directory URL |
+| `POSTGRES_PRISMA_URL` | Yes | - | PostgreSQL connection string for Prisma |
+| `CERT_ENCRYPTION_KEY` | Yes | - | AES-256-GCM key for encrypting cert/acme-dns data at rest |
+| `BCRYPT_ROUNDS` | No | `12` | Password hashing cost factor |
+| `DNS_PROPAGATION_DELAY_MS` | No | `20000` | Wait time before ACME validation |
+| `CERT_VALIDITY_DAYS` | No | `90` | Certificate validity tracking in app state |
+| `EXPIRING_THRESHOLD_DAYS` | No | `14` | Days before cert is marked expiring |
+| `RENEWAL_THRESHOLD_DAYS` | No | `14` | Renewal check threshold |
+| `SENTRY_DSN` | No | - | Server-side Sentry DSN |
+| `NEXT_PUBLIC_SENTRY_DSN` | No | - | Client-side Sentry DSN |
+| `SENTRY_TRACES_SAMPLE_RATE` | No | `0` | Sentry performance tracing sample rate |
+| `SENTRY_AUTH_TOKEN` | No | - | Enables source map uploads during build |
+
+\* If `ACMEDNS_BASE` is not set, the app falls back to `https://acme.getfreeweb.site`.
+
+---
+
+## 📡 Core API Endpoints
+
+- `POST /api/auth/register` — Register user
+- `POST /api/auth/login` — Login user
+- `POST /api/register-domain` — Register domain and return DNS CNAME details
+- `POST /api/request-cert` — Request a certificate via DNS-01 flow
+- `POST /api/renew` — Renew eligible certificates
+- `GET /api/certificates` — List user certificates
+- `GET /api/certificates/[id]` — Get certificate by ID
+- `GET /api/health` — Health check endpoint
+
+---
+
+## ☁️ Deploying to Vercel
+
+1. Create a Vercel project connected to this repository.
+2. Keep `vercel.json` as-is (it runs `npm run build` and raises max duration for DNS validation in `pages/api/request-cert.js`).
+3. Add the required environment variables in Vercel Project Settings:
+   - `POSTGRES_PRISMA_URL`
    - `CLERK_SECRET_KEY`
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-   - `ACMEDNS_BASE`
+   - `CERT_ENCRYPTION_KEY`
    - `ACME_DIRECTORY`
-   - `POSTGRES_PRISMA_URL`
-3. Initialize the database schema:
-   - `npx prisma db push`
-4. Start development server:
-   - `npm run dev`
-5. Deploy to Vercel:
-    - Create a new Vercel project connected to this repository.
-    - This repository includes `vercel.json` to run `npm run build` and increase the `pages/api/request-cert.js` max duration for DNS validation.
-    - Add runtime environment variables in Vercel Project Settings:
-     - `POSTGRES_PRISMA_URL`
-     - `CLERK_SECRET_KEY`
-     - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-     - `CERT_ENCRYPTION_KEY`
-     - `ACME_DIRECTORY`
-     - `ACMEDNS_BASE` (defaults to `https://acme.getfreeweb.site` when unset)
-     - `SENTRY_DSN`
-     - `NEXT_PUBLIC_SENTRY_DSN`
-     - `SENTRY_AUTH_TOKEN`
-   - Redeploy after setting environment variables.
+   - `ACMEDNS_BASE`
+   - `SENTRY_DSN` (optional)
+   - `NEXT_PUBLIC_SENTRY_DSN` (optional)
+   - `SENTRY_AUTH_TOKEN` (optional)
+4. Redeploy after setting variables.
 
-Environment variables:
-- `CLERK_SECRET_KEY` (required): backend auth secret key.
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (frontend): Clerk publishable key exposed to browser.
-- `NEXT_PUBLIC_APP_URL` (frontend): base URL for the app.
-- `ACMEDNS_BASE` (required): acme-dns API base URL.
-- `ACME_DIRECTORY` (required): ACME directory URL.
-- `POSTGRES_PRISMA_URL` (required): Prisma PostgreSQL connection URL.
-- `BCRYPT_ROUNDS` (default: `12`): password hashing cost.
-- `CERT_ENCRYPTION_KEY` (required): used for AES-256-GCM encryption of certificate and acme-dns secrets at rest.
-- `DNS_PROPAGATION_DELAY_MS` (default: `20000`): wait time before ACME validation.
-- `CERT_VALIDITY_DAYS` (default: `90`): used to calculate certificate expiry date in app state.
-- `EXPIRING_THRESHOLD_DAYS` / `RENEWAL_THRESHOLD_DAYS` (default: `14`): thresholds for dashboard status and renew checks.
-- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (optional): enables Sentry error reporting.
-- `SENTRY_TRACES_SAMPLE_RATE` (default: `0`): Sentry tracing sample rate.
-- `SENTRY_AUTH_TOKEN` (optional): enables source map uploads for Sentry releases during `next build`.
+---
 
-Sentry setup command (local):
-- `npx @sentry/wizard@latest -i nextjs --saas --org is-cool-me --project sslgen`
+## 🧪 Optional: Sentry Setup (Local)
+
+```bash
+npx @sentry/wizard@latest -i nextjs --saas --org is-cool-me --project sslgen
+```
