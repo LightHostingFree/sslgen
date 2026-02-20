@@ -1,14 +1,32 @@
-import * as Sentry from '@sentry/nextjs';
 
-const tracesSampleRate = (() => {
-  const value = Number.parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0');
-  return Number.isFinite(value) ? value : 0;
-})();
+// This file configures the initialization of Sentry on the client.
+// The added config here will be used whenever a users loads a page in their browser.
+// https://docs.sentry.io/platforms/javascript/guides/nextjs/
+
+import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN,
-  tracesSampleRate,
+  dsn: "https://2cb04a675801c3d0db636d6dfc4f3974@o4506898679463936.ingest.us.sentry.io/4510883486040064",
+
+  // Add optional integrations for additional features
+  integrations: [Sentry.replayIntegration()],
+
+  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
+  tracesSampleRate: 1,
+  // Enable logs to be sent to Sentry
+  enableLogs: true,
+
+  // Define how likely Replay events are sampled.
+  // This sets the sample rate to be 10%. You may want this to be 100% while
+  // in development and sample at a lower rate in production
+  replaysSessionSampleRate: 0.1,
+
+  // Define how likely Replay events are sampled when an error occurs.
+  replaysOnErrorSampleRate: 1.0,
+
+  // Enable sending user PII (Personally Identifiable Information)
+  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
+  sendDefaultPii: true,
 });
 
-// Next.js calls this hook on route transitions so Sentry can create navigation spans.
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
