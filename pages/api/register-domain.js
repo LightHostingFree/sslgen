@@ -14,10 +14,7 @@ export default async function handler(req,res){
   if(!normalizedDomain) return res.status(400).json({ error: 'domain required' });
   if (!CLOUDFLARE_VALIDATION_DOMAIN) return res.status(500).json({ error: 'CLOUDFLARE_VALIDATION_DOMAIN must be configured' });
   try{
-    const existing = await prisma.certificate.findFirst({
-      where: { userId: authUser.userId, domain: normalizedDomain },
-      orderBy: { createdAt: 'desc' }
-    });
+    const existing = await prisma.certificate.findUnique({ where: { userId_domain: { userId: authUser.userId, domain: normalizedDomain } } });
 
     if(existing){
       const cname = `_acme-challenge.${normalizedDomain} -> ${existing.cnameTarget}`;
