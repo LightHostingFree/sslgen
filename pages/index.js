@@ -1,6 +1,50 @@
 import { useEffect, useState } from 'react';
 
 const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+const GearIcon = () => (
+  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+const ShieldCheckIcon = () => (
+  <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);
+
+const Spinner = () => (
+  <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+  </svg>
+);
+
+const PageShell = ({ children, maxWidth = 'max-w-6xl', token, logout }) => (
+  <div className="min-h-screen bg-indigo-50 flex flex-col">
+    <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <span className="font-bold text-gray-800 text-sm">SSL Generator</span>
+      </div>
+      {token && (
+        <button onClick={logout} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition">
+          Logout
+        </button>
+      )}
+    </nav>
+    <div className={`${maxWidth} mx-auto w-full px-4 py-6 flex-1`}>{children}</div>
+    <footer className="text-center text-xs text-gray-400 py-4 border-t border-gray-200 bg-white">
+      Powered by <span className="text-indigo-600 font-medium">SSL Generator</span> &mdash; Free SSL Certificates
+    </footer>
+  </div>
+);
 const SERVER_REQUEST_MAX_DURATION_MS = 300000;
 const REQUEST_TIMEOUT_MS = SERVER_REQUEST_MAX_DURATION_MS + 10000;
 
@@ -208,51 +252,6 @@ export default function Home() {
     return map[status] || status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  const GearIcon = () => (
-    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-
-  const ShieldCheckIcon = () => (
-    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-    </svg>
-  );
-
-  const Spinner = () => (
-    <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
-
-  // Shared light page wrapper
-  const PageShell = ({ children, maxWidth = 'max-w-6xl' }) => (
-    <div className="min-h-screen bg-indigo-50 flex flex-col">
-      <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <span className="font-bold text-gray-800 text-sm">SSL Generator</span>
-        </div>
-        {token && (
-          <button onClick={logout} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition">
-            Logout
-          </button>
-        )}
-      </nav>
-      <div className={`${maxWidth} mx-auto w-full px-4 py-6 flex-1`}>{children}</div>
-      <footer className="text-center text-xs text-gray-400 py-4 border-t border-gray-200 bg-white">
-        Powered by <span className="text-indigo-600 font-medium">SSL Generator</span> &mdash; Free SSL Certificates
-      </footer>
-    </div>
-  );
-
   if (!token) {
     const isRegister = authView === 'register';
     return (
@@ -320,7 +319,7 @@ export default function Home() {
 
   if (currentView === 'new') {
     return (
-      <PageShell maxWidth="max-w-2xl">
+      <PageShell maxWidth="max-w-2xl" token={token} logout={logout}>
         <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
           FREE SSL CERTIFICATES
         </div>
@@ -394,7 +393,7 @@ export default function Home() {
   if (currentView === 'validate' && validationData) {
     const cnameTarget = validationData.cname.split(' -> ')[1] || validationData.cname;
     return (
-      <PageShell maxWidth="max-w-2xl">
+      <PageShell maxWidth="max-w-2xl" token={token} logout={logout}>
         <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
           FREE SSL CERTIFICATES
         </div>
@@ -453,7 +452,7 @@ export default function Home() {
 
   if (currentView === 'detail' && selectedCertificate) {
     return (
-      <PageShell>
+      <PageShell token={token} logout={logout}>
         <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
           FREE SSL CERTIFICATES
         </div>
@@ -470,6 +469,7 @@ export default function Home() {
         </div>
         <div className="grid md:grid-cols-3 gap-5">
           <div className="md:col-span-2 space-y-4">
+            {selectedCertificate.status === 'ISSUED' && (
             <section className="bg-white rounded-2xl border border-gray-100 shadow">
               <div className="px-5 py-4 border-b border-gray-100">
                 <h2 className="font-bold text-gray-800">Step 4: Install SSL Certificate</h2>
@@ -486,6 +486,7 @@ export default function Home() {
                 </button>
               </div>
             </section>
+            )}
             {certKeys && (
               <section className="bg-white rounded-2xl border border-gray-100 shadow">
                 <div className="px-5 py-4 border-b border-gray-100">
@@ -585,7 +586,7 @@ export default function Home() {
   };
 
   return (
-    <PageShell>
+    <PageShell token={token} logout={logout}>
       <div className="mb-1 text-xs text-gray-400 uppercase tracking-widest font-medium">Free SSL Certificates</div>
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-bold text-gray-800">SSL Certificates</h1>
