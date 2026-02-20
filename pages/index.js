@@ -31,6 +31,7 @@ export default function Home() {
   const [success, setSuccess] = useState('');
   const [certificates, setCertificates] = useState([]);
   const [isValidating, setIsValidating] = useState(false);
+  const [certKeys, setCertKeys] = useState(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
@@ -135,6 +136,31 @@ export default function Home() {
     }
   }
 
+  async function viewCertificateKeys(id) {
+    setError('');
+    const res = await fetch(`/api/certificates/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await safeJsonParse(res);
+    if (!res.ok) return setError(data.error || 'Failed to load certificate');
+    setCertKeys(data);
+  }
+
+  async function deleteCertificate(id) {
+    if (!confirm('Are you sure you want to delete this certificate order? This action cannot be undone.')) return;
+    setError('');
+    const res = await fetch(`/api/certificates/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await safeJsonParse(res);
+    if (!res.ok) return setError(data.error || 'Failed to delete certificate');
+    setSelectedCertificate(null);
+    setCertKeys(null);
+    setCurrentView('list');
+    await loadCertificates();
+  }
+
   function logout() {
     window.localStorage.removeItem('token');
     setToken('');
@@ -233,7 +259,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold">Let&apos;s Encrypt SSL Certificate for {selectedCertificate.domain}</h1>
-            <button onClick={() => setCurrentView('list')} className="text-sm px-3 py-1 border rounded">Back</button>
+            <button onClick={() => { setCertKeys(null); setCurrentView('list'); }} className="text-sm px-3 py-1 border rounded">Back</button>
           </div>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="md:col-span-2 space-y-3">
@@ -243,9 +269,24 @@ export default function Home() {
                   Use the private key and certificate files to install SSL on your hosting account or server.
                 </div>
                 <div className="px-4 pb-4">
-                  <button disabled className="px-3 py-2 border rounded text-sm opacity-60 cursor-not-allowed">View Private Key and Certificate</button>
+                  <button onClick={() => viewCertificateKeys(selectedCertificate.id)} className="px-3 py-2 border rounded text-sm">View Private Key and Certificate</button>
                 </div>
               </section>
+              {certKeys && (
+                <section className="bg-white border rounded">
+                  <div className="px-4 py-3 border-b font-semibold">Private Key and Certificate</div>
+                  <div className="px-4 py-3 space-y-3">
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 mb-1">PRIVATE KEY</div>
+                      <textarea readOnly className="w-full border rounded p-2 text-xs font-mono h-40 bg-gray-50" value={certKeys.privateKey || '(not available)'} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 mb-1">CERTIFICATE</div>
+                      <textarea readOnly className="w-full border rounded p-2 text-xs font-mono h-40 bg-gray-50" value={certKeys.certificate || '(not available)'} />
+                    </div>
+                  </div>
+                </section>
+              )}
               <section className="bg-white border rounded">
                 <div className="px-4 py-3 border-b font-semibold">Step 5: Verify Installation on {selectedCertificate.domain}</div>
                 <div className="px-4 py-3 text-sm text-gray-700">
@@ -271,7 +312,7 @@ export default function Home() {
                   </ol>
                 </div>
               </section>
-              <button disabled className="text-sm text-purple-700 opacity-60 cursor-not-allowed">Delete Certificate Order</button>
+              <button onClick={() => deleteCertificate(selectedCertificate.id)} className="text-sm text-purple-700">Delete Certificate Order</button>
             </div>
             <aside className="bg-white border rounded p-4 text-sm h-fit">
               <h2 className="font-semibold mb-3">Certificate Details</h2>
@@ -354,6 +395,7 @@ export default function Home() {
                           return;
                         }
                         setSelectedCertificate(item);
+                        setCertKeys(null);
                         setCurrentView('detail');
                       }}
                     >
