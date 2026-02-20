@@ -55,8 +55,8 @@ export default function Home() {
     setToken(data.token);
   }
 
-  async function loadCertificates(activeToken = token) {
-    const query = filter === 'ALL' ? '' : `?status=${encodeURIComponent(filter)}`;
+  async function loadCertificates(activeToken = token, statusFilter = filter) {
+    const query = statusFilter === 'ALL' ? '' : `?status=${encodeURIComponent(statusFilter)}`;
     const res = await fetch(`/api/certificates${query}`, {
       headers: { Authorization: `Bearer ${activeToken}` }
     });
@@ -124,7 +124,11 @@ export default function Home() {
       setValidationData(null);
       setCurrentView('list');
       setDomain('');
-      await loadCertificates();
+      // Reset filter to 'ALL' so all certificates appear after generation.
+      // setFilter schedules the state update for the next render, so we also
+      // pass 'ALL' explicitly to loadCertificates to avoid stale closure.
+      setFilter('ALL');
+      await loadCertificates(token, 'ALL');
     } catch (requestError) {
       const errorMessage = requestError.name === 'AbortError'
         ? 'Validation timed out. Please try again.'
@@ -283,6 +287,10 @@ export default function Home() {
                     <div>
                       <div className="text-xs font-medium text-gray-500 mb-1">CERTIFICATE</div>
                       <textarea readOnly className="w-full border rounded p-2 text-xs font-mono h-40 bg-gray-50" value={certKeys.certificate || '(not available)'} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-500 mb-1">CA BUNDLE</div>
+                      <textarea readOnly className="w-full border rounded p-2 text-xs font-mono h-40 bg-gray-50" value={certKeys.caBundle || '(not available)'} />
                     </div>
                   </div>
                 </section>
