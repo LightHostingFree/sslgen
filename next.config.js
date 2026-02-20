@@ -1,6 +1,6 @@
 const { withSentryConfig } = require('@sentry/nextjs');
 
-const nextConfig = { reactStrictMode: true, experimental: { appDir: false } };
+const nextConfig = { reactStrictMode: true };
 
 module.exports = withSentryConfig(nextConfig, {
   org: 'is-cool-me',
@@ -8,6 +8,6 @@ module.exports = withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   widenClientFileUpload: true,
   tunnelRoute: '/monitoring',
-  automaticVercelMonitors: true,
+  webpack: { automaticVercelMonitors: true },
   treeshake: { removeDebugLogging: true },
 });
