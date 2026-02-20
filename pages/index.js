@@ -41,7 +41,7 @@ const PageShell = ({ children, maxWidth = 'max-w-6xl', token, logout }) => (
     </nav>
     <div className={`${maxWidth} mx-auto w-full px-4 py-6 flex-1`}>{children}</div>
     <footer className="text-center text-xs text-gray-400 py-4 border-t border-gray-200 bg-white">
-      Powered by <span className="text-indigo-600 font-medium">SSL Generator</span> &mdash; Free SSL Certificates &mdash; Made with ❤️ by Mayank Baswal
+      Made with ❤️ by Mayank Baswal
     </footer>
   </div>
 );
