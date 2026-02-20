@@ -1,7 +1,6 @@
 import * as acme from 'acme-client';
 import axios from 'axios';
 import * as Sentry from '@sentry/nextjs';
-import { promises as dns } from 'dns';
 import prisma from '../../lib/prisma';
 import { requireAuth } from '../../lib/auth';
 import { CLOUDFLARE_API_BASE } from '../../lib/constants';
@@ -25,27 +24,6 @@ async function axiosWithRetry(config, retries = MAX_RETRIES) {
       const isRetryable = isNetworkError || status === 502 || status === 503 || status === 504;
       if (attempt >= retries || !isRetryable) throw err;
       await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
-    }
-  }
-}
-
-async function validateDomainExists(domain) {
-  const isServerError = (err) => ['ESERVFAIL', 'EREFUSED', 'ETIMEOUT'].includes(err?.code);
-  
-  try {
-    await dns.resolve(domain, 'A');
-    return { exists: true, error: null };
-  } catch (error) {
-    // Try AAAA record (IPv6) if A record (IPv4) fails
-    try {
-      await dns.resolve(domain, 'AAAA');
-      return { exists: true, error: null };
-    } catch (error2) {
-      // If DNS server refuses the query, we can't validate
-      if (isServerError(error) || isServerError(error2)) {
-        return { exists: null, error: 'DNS validation unavailable' };
-      }
-      return { exists: false, error: error2.message };
     }
   }
 }
@@ -101,28 +79,8 @@ export default async function handler(req, res) {
     });
     if (!certificate) return res.status(404).json({ error: 'Register domain first' });
 
-    // Validate that the domain exists before attempting certificate generation
     const names = wildcard ? [`*.${normalizedDomain}`, normalizedDomain] : [normalizedDomain, ...(includeWww ? [`www.${normalizedDomain}`] : [])];
     
-    // Check if base domain resolves (skip if DNS validation is unavailable)
-    const domainCheck = await validateDomainExists(normalizedDomain);
-    if (domainCheck.exists === false) {
-      return res.status(400).json({ 
-        error: `Domain ${normalizedDomain} does not exist or cannot be resolved. Please ensure the domain is registered and has valid DNS records before requesting a certificate.` 
-      });
-    }
-
-    // If including www subdomain, validate it exists too (skip if DNS validation is unavailable)
-    if (includeWww && !wildcard) {
-      const wwwDomain = `www.${normalizedDomain}`;
-      const wwwCheck = await validateDomainExists(wwwDomain);
-      if (wwwCheck.exists === false) {
-        return res.status(400).json({ 
-          error: `Subdomain ${wwwDomain} does not exist or cannot be resolved. Either add DNS records for www.${normalizedDomain} or request a certificate without the www subdomain by setting includeWww to false.` 
-        });
-      }
-    }
-
     const accountEmail = email || authUser.email;
     const client = new acme.Client({
       directoryUrl: ACME_DIRECTORY,
