@@ -68,6 +68,9 @@ export default function Home() {
   const [authView, setAuthView] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [domain, setDomain] = useState('');
   const [wildcard, setWildcard] = useState(false);
   const [includeWww, setIncludeWww] = useState(true);
@@ -91,6 +94,12 @@ export default function Home() {
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
     setToken(saved);
+    const params = new URLSearchParams(window.location.search);
+    const rt = params.get('reset');
+    if (rt) {
+      setResetToken(rt);
+      setAuthView('reset');
+    }
   }, []);
 
   useEffect(() => {
@@ -108,6 +117,36 @@ export default function Home() {
     if (!res.ok) return setError(data.error || 'Request failed');
     window.localStorage.setItem('token', data.token);
     setToken(data.token);
+  }
+
+  async function forgotPassword() {
+    setError('');
+    setSuccess('');
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: forgotEmail })
+    });
+    const data = await safeJsonParse(res);
+    if (!res.ok) return setError(data.error || 'Request failed');
+    setSuccess(data.message || 'Reset link sent. Check your email.');
+  }
+
+  async function resetPassword() {
+    setError('');
+    setSuccess('');
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: resetToken, password: newPassword })
+    });
+    const data = await safeJsonParse(res);
+    if (!res.ok) return setError(data.error || 'Request failed');
+    setSuccess(data.message || 'Password reset. You can now log in.');
+    setResetToken('');
+    setNewPassword('');
+    window.history.replaceState({}, '', '/');
+    setTimeout(() => { setAuthView('login'); setSuccess(''); }, 3000);
   }
 
   async function loadCertificates(activeToken = token, statusFilter = filter) {
@@ -301,6 +340,101 @@ export default function Home() {
 
   if (!token) {
     const isRegister = authView === 'register';
+    const isForgot = authView === 'forgot';
+    const isReset = authView === 'reset';
+
+    if (isReset) {
+      return (
+        <div className="min-h-screen bg-indigo-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-300">
+                <ShieldCheckIcon />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">SSL Generator</h1>
+              <p className="text-gray-500 mt-1 text-sm">Free SSL certificates for your domains</p>
+            </div>
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
+              <h2 className="text-lg font-bold text-gray-800 mb-1">Set new password</h2>
+              <p className="text-sm text-gray-500 mb-6">Enter your new password below.</p>
+              <div className="space-y-3">
+                <input
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm"
+                  placeholder="New password (min 8 characters)"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={resetPassword}
+                className="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-3 rounded-xl transition shadow-md shadow-indigo-200 text-sm"
+              >
+                Reset Password
+              </button>
+              {error && (
+                <div className="mt-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+              )}
+              {success && (
+                <div className="mt-4 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">{success}</div>
+              )}
+              <p className="mt-5 text-center text-sm text-gray-500">
+                <button onClick={() => { setError(''); setSuccess(''); setAuthView('login'); }} className="text-indigo-600 hover:text-indigo-800 font-semibold transition">
+                  Back to Sign In
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (isForgot) {
+      return (
+        <div className="min-h-screen bg-indigo-50 flex items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-300">
+                <ShieldCheckIcon />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">SSL Generator</h1>
+              <p className="text-gray-500 mt-1 text-sm">Free SSL certificates for your domains</p>
+            </div>
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
+              <h2 className="text-lg font-bold text-gray-800 mb-1">Forgot your password?</h2>
+              <p className="text-sm text-gray-500 mb-6">Enter your email and we&apos;ll send you a reset link.</p>
+              <div className="space-y-3">
+                <input
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm"
+                  placeholder="Email address"
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={forgotPassword}
+                className="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-3 rounded-xl transition shadow-md shadow-indigo-200 text-sm"
+              >
+                Send Reset Link
+              </button>
+              {error && (
+                <div className="mt-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">{error}</div>
+              )}
+              {success && (
+                <div className="mt-4 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">{success}</div>
+              )}
+              <p className="mt-5 text-center text-sm text-gray-500">
+                <button onClick={() => { setError(''); setSuccess(''); setAuthView('login'); }} className="text-indigo-600 hover:text-indigo-800 font-semibold transition">
+                  Back to Sign In
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-indigo-50 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
@@ -338,6 +472,16 @@ export default function Home() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+            {!isRegister && (
+              <div className="mt-2 text-right">
+                <button
+                  onClick={() => { setError(''); setSuccess(''); setForgotEmail(email); setAuthView('forgot'); }}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
             <button
               onClick={() => auth(isRegister ? '/api/auth/register' : '/api/auth/login')}
               className="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-3 rounded-xl transition shadow-md shadow-indigo-200 text-sm"
