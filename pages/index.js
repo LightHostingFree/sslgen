@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -48,6 +48,10 @@ const PageShell = ({ children, maxWidth = 'max-w-6xl', token, logout }) => (
 const SERVER_REQUEST_MAX_DURATION_MS = 300000;
 const REQUEST_TIMEOUT_MS = SERVER_REQUEST_MAX_DURATION_MS + 10000;
 
+function normalizeHostname(hostname) {
+  return String(hostname || '').replace(/\.$/, '').toLowerCase();
+}
+
 async function safeJsonParse(res) {
   try {
     return await res.json();
@@ -81,6 +85,8 @@ export default function Home() {
   const [isValidating, setIsValidating] = useState(false);
   const [certKeys, setCertKeys] = useState(null);
   const [dnsOpen, setDnsOpen] = useState(true);
+  const [dnsCheckResult, setDnsCheckResult] = useState(null);
+  const [isDnsChecking, setIsDnsChecking] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
@@ -198,6 +204,26 @@ export default function Home() {
     if (!res.ok) return setError(data.error || 'Failed to load certificate');
     setCertKeys(data);
   }
+
+  const checkDns = useCallback(async (domainToCheck) => {
+    setIsDnsChecking(true);
+    try {
+      const res = await fetch(`/api/check-dns?domain=${encodeURIComponent(domainToCheck)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await safeJsonParse(res);
+      if (res.ok) setDnsCheckResult(data);
+    } finally {
+      setIsDnsChecking(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (currentView === 'validate' && validationData?.domain) {
+      setDnsCheckResult(null);
+      checkDns(validationData.domain);
+    }
+  }, [currentView, validationData?.domain, checkDns]);
 
   async function deleteCertificate(id) {
     if (!confirm('Are you sure you want to delete this certificate order? This action cannot be undone.')) return;
@@ -449,6 +475,8 @@ export default function Home() {
 
   if (currentView === 'validate' && validationData) {
     const cnameTarget = validationData.cname.split(' -> ')[1] || validationData.cname;
+    const cnameMatches = dnsCheckResult?.cname && normalizeHostname(dnsCheckResult.cname) === normalizeHostname(cnameTarget);
+    const isReady = cnameMatches;
     return (
       <PageShell token={token} logout={logout}>
         <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
@@ -459,13 +487,19 @@ export default function Home() {
         </h1>
         <div className="flex gap-5 items-start">
           <div className="flex-1 min-w-0 space-y-4">
-            <div className="flex gap-3 px-4 py-4 rounded-xl bg-red-50 border border-red-200 text-sm text-gray-700">
-              <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zm9-3.75a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <div className={`flex gap-3 px-4 py-4 rounded-xl text-sm text-gray-700 ${isReady ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <svg className={`w-5 h-5 shrink-0 mt-0.5 ${isReady ? 'text-green-500' : 'text-red-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                {isReady
+                  ? <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zm9-3.75a9 9 0 11-18 0 9 9 0 0118 0z" />
+                }
               </svg>
               <div>
-                <p className="font-semibold text-gray-800">Please set up the following CNAME record on your domain name.</p>
-                <p className="text-gray-500 mt-0.5">This record is necessary for the certificate provider to verify you own the domain name.</p>
+                {isReady
+                  ? <p className="font-semibold text-gray-800">Your CNAME record is set up correctly. You can now request your certificate.</p>
+                  : <><p className="font-semibold text-gray-800">Please set up the following CNAME record on your domain name.</p>
+                    <p className="text-gray-500 mt-0.5">This record is necessary for the certificate provider to verify you own the domain name.</p></>
+                }
               </div>
             </div>
             <div className="rounded-xl border border-gray-200 overflow-hidden bg-white shadow-sm">
@@ -474,7 +508,10 @@ export default function Home() {
                 className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 transition"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs leading-none">✕</span>
+                  {isReady
+                    ? <span className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs leading-none">✓</span>
+                    : <span className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs leading-none">✕</span>
+                  }
                   <span className="font-semibold text-gray-800 text-sm">Setup DNS Record for {validationData.domain}</span>
                 </div>
                 <svg className={`w-5 h-5 text-gray-400 transition-transform ${dnsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -499,26 +536,61 @@ export default function Home() {
                       </tr>
                       <tr>
                         <td className="px-4 py-3 font-semibold text-gray-700">Current Destination</td>
-                        <td className="px-4 py-3 text-gray-500">
-                          <span className="flex items-center gap-2">
-                            (no CNAME found)
-                            <span className="px-2 py-0.5 rounded bg-red-500 text-white text-xs font-semibold">Not Ready</span>
-                          </span>
+                        <td className="px-4 py-3">
+                          {isDnsChecking && !dnsCheckResult ? (
+                            <span className="flex items-center gap-2 text-gray-400"><Spinner />Checking…</span>
+                          ) : dnsCheckResult?.cname ? (
+                            <span className="flex items-center gap-2 text-gray-600 break-all">
+                              {dnsCheckResult.cname}
+                              {cnameMatches
+                                ? <span className="px-2 py-0.5 rounded bg-green-500 text-white text-xs font-semibold shrink-0">Ready</span>
+                                : <span className="px-2 py-0.5 rounded bg-red-500 text-white text-xs font-semibold shrink-0">Not Ready</span>
+                              }
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-2 text-gray-500">
+                              (no CNAME found)
+                              <span className="px-2 py-0.5 rounded bg-red-500 text-white text-xs font-semibold">Not Ready</span>
+                            </span>
+                          )}
                         </td>
                       </tr>
                     </tbody>
                   </table>
-                  <div className="mx-4 mb-4 mt-2 flex gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-gray-700">
-                    <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>
-                    <div>
-                      <p className="font-semibold text-gray-800">We did not detect any nameservers on your domain name.</p>
-                      <p className="text-gray-500 mt-0.5">Please make sure that your domain name is active and set up correctly with the provider of the domain name.</p>
+                  {dnsCheckResult && !dnsCheckResult.hasNameservers && (
+                    <div className="mx-4 mb-4 mt-2 flex gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-gray-700">
+                      <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                      </svg>
+                      <div>
+                        <p className="font-semibold text-gray-800">We did not detect any nameservers on your domain name.</p>
+                        <p className="text-gray-500 mt-0.5">Please make sure that your domain name is active and set up correctly with the provider of the domain name.</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  {dnsCheckResult?.cname && !cnameMatches && (
+                    <div className="mx-4 mb-4 mt-2 flex gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-gray-700">
+                      <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                      </svg>
+                      <div>
+                        <p className="font-semibold text-gray-800">Your CNAME record is pointing to the wrong destination.</p>
+                        <p className="text-gray-500 mt-0.5">Please update your <span className="font-mono">_acme-challenge</span> CNAME record to point to <span className="font-mono break-all">{cnameTarget}</span>.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                disabled={isDnsChecking}
+                onClick={() => checkDns(validationData.domain)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {isDnsChecking && <Spinner />}
+                {isDnsChecking ? 'Checking…' : 'Check Again'}
+              </button>
             </div>
             <p className="text-sm text-gray-500">Please note that DNS changes can take a few hours to take effect.</p>
             {error && (
