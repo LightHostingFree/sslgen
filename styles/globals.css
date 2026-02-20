@@ -1,1 +1,6 @@
 html,body,#__next{height:100%}
+*{scrollbar-width:thin;scrollbar-color:#c7d2fe transparent}
+*::-webkit-scrollbar{width:6px;height:6px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:#c7d2fe;border-radius:3px}
+*::-webkit-scrollbar-thumb:hover{background:#a5b4fc}

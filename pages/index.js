@@ -17,6 +17,7 @@ async function safeJsonParse(res) {
 
 export default function Home() {
   const [token, setToken] = useState('');
+  const [authView, setAuthView] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [domain, setDomain] = useState('');
@@ -171,6 +172,11 @@ export default function Home() {
     setCertificates([]);
   }
 
+  function toggleAuthView() {
+    setError('');
+    setAuthView((prev) => (prev === 'login' ? 'register' : 'login'));
+  }
+
   function formatDate(value) {
     if (!value) return '-';
     return new Date(value).toLocaleDateString();
@@ -182,25 +188,131 @@ export default function Home() {
   }
 
   function statusBadgeClass(status) {
-    if (status === 'ISSUED') return 'bg-green-600';
-    if (status === 'ACTION_REQUIRED') return 'bg-amber-500';
-    if (status === 'FAILED') return 'bg-red-600';
-    return 'bg-gray-500';
+    if (status === 'ISSUED') return 'bg-green-100 text-green-700 border border-green-200';
+    if (status === 'ACTION_REQUIRED') return 'bg-amber-100 text-amber-700 border border-amber-200';
+    if (status === 'FAILED') return 'bg-red-100 text-red-600 border border-red-200';
+    if (status === 'EXPIRED') return 'bg-red-100 text-red-500 border border-red-200';
+    if (status === 'REVOKED') return 'bg-purple-100 text-purple-600 border border-purple-200';
+    return 'bg-gray-100 text-gray-500 border border-gray-200';
   }
 
-  if (!token) {
-    return (
-      <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
-        <div className="bg-white p-6 rounded-xl w-full max-w-md shadow">
-          <h1 className="text-xl font-bold mb-4">SSL Platform Login / Register</h1>
-          {!clerkPublishableKey && <p className="mb-3 text-red-600">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not configured</p>}
-          <input className="w-full border rounded p-2 mb-2" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className="w-full border rounded p-2 mb-4" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <div className="flex gap-2">
-            <button onClick={() => auth('/api/auth/login')} className="bg-blue-600 text-white px-4 py-2 rounded">Login</button>
-            <button onClick={() => auth('/api/auth/register')} className="bg-green-600 text-white px-4 py-2 rounded">Register</button>
+  function statusLabel(status) {
+    if (!status) return '';
+    const map = {
+      ISSUED: 'Issued',
+      FAILED: 'Failed',
+      EXPIRED: 'Expired',
+      REVOKED: 'Revoked',
+      ACTION_REQUIRED: 'Action Required'
+    };
+    return map[status] || status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  const GearIcon = () => (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+
+  const ShieldCheckIcon = () => (
+    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+    </svg>
+  );
+
+  const Spinner = () => (
+    <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+
+  // Shared light page wrapper
+  const PageShell = ({ children, maxWidth = 'max-w-6xl' }) => (
+    <div className="min-h-screen bg-indigo-50 flex flex-col">
+      <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
           </div>
-          {error && <p className="mt-3 text-red-600">{error}</p>}
+          <span className="font-bold text-gray-800 text-sm">SSL Generator</span>
+        </div>
+        {token && (
+          <button onClick={logout} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition">
+            Logout
+          </button>
+        )}
+      </nav>
+      <div className={`${maxWidth} mx-auto w-full px-4 py-6 flex-1`}>{children}</div>
+      <footer className="text-center text-xs text-gray-400 py-4 border-t border-gray-200 bg-white">
+        Powered by <span className="text-indigo-600 font-medium">SSL Generator</span> &mdash; Free SSL Certificates
+      </footer>
+    </div>
+  );
+
+  if (!token) {
+    const isRegister = authView === 'register';
+    return (
+      <div className="min-h-screen bg-indigo-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-300">
+              <ShieldCheckIcon />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">SSL Generator</h1>
+            <p className="text-gray-500 mt-1 text-sm">Free SSL certificates for your domains</p>
+          </div>
+          <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
+            <h2 className="text-lg font-bold text-gray-800 mb-1">
+              {isRegister ? 'Create an account' : 'Welcome back'}
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+              {isRegister ? 'Sign up to manage your SSL certificates.' : 'Sign in to your SSL dashboard.'}
+            </p>
+            {!clerkPublishableKey && (
+              <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not configured
+              </div>
+            )}
+            <div className="space-y-3">
+              <input
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <input
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm"
+                placeholder="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => auth(isRegister ? '/api/auth/register' : '/api/auth/login')}
+              className="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-3 rounded-xl transition shadow-md shadow-indigo-200 text-sm"
+            >
+              {isRegister ? 'Create Account' : 'Sign In'}
+            </button>
+            {error && (
+              <div className="mt-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+            <p className="mt-5 text-center text-sm text-gray-500">
+              {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <button
+                onClick={toggleAuthView}
+                className="text-indigo-600 hover:text-indigo-800 font-semibold transition"
+              >
+                {isRegister ? 'Sign in' : 'Register'}
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -208,189 +320,331 @@ export default function Home() {
 
   if (currentView === 'new') {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="max-w-3xl mx-auto bg-white rounded-xl p-6 shadow">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold">Order New SSL Certificate</h1>
-            <button onClick={() => setCurrentView('list')} className="text-sm px-3 py-1 border rounded">Back</button>
-          </div>
-          <label className="block text-sm font-medium mb-1">Domain Name</label>
-          <input className="w-full border rounded p-2 mb-2" placeholder="example.com" value={domain} onChange={(e) => setDomain(e.target.value)} />
-          <p className="text-xs text-gray-600 mb-3">Auto-include www</p>
-          <label className="border rounded p-2 mb-3 flex items-center gap-2">
-            <input type="checkbox" checked={includeWww} onChange={(e) => setIncludeWww(e.target.checked)} />
-            Include www subdomain
-          </label>
-          <button onClick={() => setAdvancedOpen((value) => !value)} aria-expanded={advancedOpen} className="text-sm underline mb-2">Advanced options</button>
-          {advancedOpen && (
-            <label className="border rounded p-2 mb-4 flex items-center gap-2">
-              <input type="checkbox" checked={wildcard} onChange={(e) => setWildcard(e.target.checked)} />
-              Request wildcard certificate
-            </label>
-          )}
-          <button onClick={createOrder} className="bg-blue-600 text-white px-4 py-2 rounded">Create Order</button>
-          {error && <p className="mt-3 text-red-600">{error}</p>}
+      <PageShell maxWidth="max-w-2xl">
+        <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
+          FREE SSL CERTIFICATES
         </div>
-      </div>
+        <div className="bg-white rounded-2xl shadow border border-gray-100">
+          <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100">
+            <h1 className="text-lg font-bold text-gray-800">Order New SSL Certificate</h1>
+            <button
+              onClick={() => setCurrentView('list')}
+              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition"
+            >
+              ← Back
+            </button>
+          </div>
+          <div className="px-6 py-6 space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Domain Name</label>
+              <input
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition text-sm"
+                placeholder="example.com"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1.5">Enter the root domain — www can be included automatically below.</p>
+            </div>
+            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition bg-gray-50">
+              <input
+                type="checkbox"
+                checked={includeWww}
+                onChange={(e) => setIncludeWww(e.target.checked)}
+                className="w-4 h-4 accent-indigo-600"
+              />
+              <span className="text-sm text-gray-700">Include www subdomain</span>
+            </label>
+            <div>
+              <button
+                onClick={() => setAdvancedOpen((value) => !value)}
+                aria-expanded={advancedOpen}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition flex items-center gap-1"
+              >
+                <span>{advancedOpen ? '▾' : '▸'}</span> Advanced options
+              </button>
+              {advancedOpen && (
+                <label className="mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={wildcard}
+                    onChange={(e) => setWildcard(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-600"
+                  />
+                  <span className="text-sm text-gray-700">Request wildcard certificate (*.example.com)</span>
+                </label>
+              )}
+            </div>
+            <button
+              onClick={createOrder}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition shadow-md shadow-indigo-200 text-sm"
+            >
+              + Create Order
+            </button>
+            {error && (
+              <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+        </div>
+      </PageShell>
     );
   }
 
   if (currentView === 'validate' && validationData) {
     const cnameTarget = validationData.cname.split(' -> ')[1] || validationData.cname;
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="max-w-3xl mx-auto bg-white rounded-xl p-6 shadow">
-          <h1 className="text-2xl font-bold mb-2">Validate your domain name</h1>
-          <p className="mb-4">Create the DNS record below, wait for propagation, then continue.</p>
-          <div className="border rounded p-4 bg-gray-50 space-y-2 font-mono text-sm mb-4">
-            <div>Record Type: CNAME</div>
-            <div>Name: _acme-challenge.{validationData.domain}</div>
-            <div>Value: {cnameTarget}</div>
-          </div>
-          <div className="flex gap-2">
-            <button disabled={isValidating} onClick={() => generateCertificate(validationData)} className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-60 disabled:cursor-not-allowed">{isValidating ? 'Validating...' : 'Continue Validation'}</button>
-            <button disabled={isValidating} onClick={() => setCurrentView('list')} className="px-4 py-2 border rounded disabled:opacity-60 disabled:cursor-not-allowed">Back to Certificates</button>
-          </div>
-          {error && <p className="mt-3 text-red-600">{error}</p>}
+      <PageShell maxWidth="max-w-2xl">
+        <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
+          FREE SSL CERTIFICATES
         </div>
-      </div>
+        <div className="bg-white rounded-2xl shadow border border-gray-100">
+          <div className="px-6 py-5 border-b border-gray-100">
+            <h1 className="text-lg font-bold text-gray-800">Validate Your Domain</h1>
+            <p className="text-gray-500 text-sm mt-1">Add the DNS record below, wait for propagation, then click continue.</p>
+          </div>
+          <div className="px-6 py-6 space-y-5">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 overflow-hidden">
+              <div className="px-4 py-2 bg-indigo-100 border-b border-indigo-200">
+                <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">DNS Record to Add</span>
+              </div>
+              <div className="px-4 py-4 space-y-3 font-mono text-sm">
+                <div className="flex items-start gap-3">
+                  <span className="text-gray-400 w-28 shrink-0 text-xs font-sans">Record Type</span>
+                  <span className="text-gray-800 font-bold">CNAME</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-gray-400 w-28 shrink-0 text-xs font-sans">Name</span>
+                  <span className="text-indigo-700 break-all text-xs">_acme-challenge.{validationData.domain}</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-gray-400 w-28 shrink-0 text-xs font-sans">Value</span>
+                  <span className="text-indigo-700 break-all text-xs">{cnameTarget}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                disabled={isValidating}
+                onClick={() => generateCertificate(validationData)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-3 rounded-xl transition shadow-md shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {isValidating && <Spinner />}
+                {isValidating ? 'Validating…' : 'Continue Validation'}
+              </button>
+              <button
+                disabled={isValidating}
+                onClick={() => setCurrentView('list')}
+                className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Back
+              </button>
+            </div>
+            {error && (
+              <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+        </div>
+      </PageShell>
     );
   }
 
   if (currentView === 'detail' && selectedCertificate) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold">Let&apos;s Encrypt SSL Certificate for {selectedCertificate.domain}</h1>
-            <button onClick={() => { setCertKeys(null); setCurrentView('list'); }} className="text-sm px-3 py-1 border rounded">Back</button>
+      <PageShell>
+        <div className="mb-4 text-xs text-gray-400 uppercase tracking-widest font-medium">
+          FREE SSL CERTIFICATES
+        </div>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">SSL Certificate — {selectedCertificate.domain}</h1>
           </div>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 space-y-3">
-              <section className="bg-white border rounded">
-                <div className="px-4 py-3 border-b font-semibold">Step 4: Install SSL Certificate</div>
-                <div className="px-4 py-3 text-sm text-gray-700">
-                  Use the private key and certificate files to install SSL on your hosting account or server.
+          <button
+            onClick={() => { setCertKeys(null); setCurrentView('list'); }}
+            className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition"
+          >
+            ← Back to Certificates
+          </button>
+        </div>
+        <div className="grid md:grid-cols-3 gap-5">
+          <div className="md:col-span-2 space-y-4">
+            <section className="bg-white rounded-2xl border border-gray-100 shadow">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="font-bold text-gray-800">Step 4: Install SSL Certificate</h2>
+              </div>
+              <div className="px-5 py-4 text-sm text-gray-600">
+                Use the private key and certificate files to install SSL on your hosting account or server.
+              </div>
+              <div className="px-5 pb-5">
+                <button
+                  onClick={() => viewCertificateKeys(selectedCertificate.id)}
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition shadow shadow-indigo-200"
+                >
+                  View Private Key and Certificate
+                </button>
+              </div>
+            </section>
+            {certKeys && (
+              <section className="bg-white rounded-2xl border border-gray-100 shadow">
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <h2 className="font-bold text-gray-800">Private Key and Certificate</h2>
                 </div>
-                <div className="px-4 pb-4">
-                  <button onClick={() => viewCertificateKeys(selectedCertificate.id)} className="px-3 py-2 border rounded text-sm">View Private Key and Certificate</button>
+                <div className="px-5 py-4 space-y-4">
+                  {[
+                    { label: 'PRIVATE KEY', value: certKeys.privateKey },
+                    { label: 'CERTIFICATE', value: certKeys.certificate },
+                    { label: 'CA BUNDLE', value: certKeys.caBundle }
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div className="text-xs font-bold text-gray-400 mb-2 tracking-wider">{label}</div>
+                      <textarea
+                        readOnly
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-700 h-40 focus:outline-none resize-none bg-gray-50"
+                        value={value || '(not available)'}
+                      />
+                    </div>
+                  ))}
                 </div>
               </section>
-              {certKeys && (
-                <section className="bg-white border rounded">
-                  <div className="px-4 py-3 border-b font-semibold">Private Key and Certificate</div>
-                  <div className="px-4 py-3 space-y-3">
-                    <div>
-                      <div className="text-xs font-medium text-gray-500 mb-1">PRIVATE KEY</div>
-                      <textarea readOnly className="w-full border rounded p-2 text-xs font-mono h-40 bg-gray-50" value={certKeys.privateKey || '(not available)'} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium text-gray-500 mb-1">CERTIFICATE</div>
-                      <textarea readOnly className="w-full border rounded p-2 text-xs font-mono h-40 bg-gray-50" value={certKeys.certificate || '(not available)'} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium text-gray-500 mb-1">CA BUNDLE</div>
-                      <textarea readOnly className="w-full border rounded p-2 text-xs font-mono h-40 bg-gray-50" value={certKeys.caBundle || '(not available)'} />
-                    </div>
+            )}
+            <section className="bg-white rounded-2xl border border-gray-100 shadow">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="font-bold text-gray-800">Step 5: Verify Installation on {selectedCertificate.domain}</h2>
+              </div>
+              <div className="px-5 py-4 text-sm">
+                <div className="grid grid-cols-3 gap-y-3 text-gray-700">
+                  <div className="text-gray-400 font-medium">Status</div>
+                  <div className="col-span-2">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusBadgeClass(selectedCertificate.status)}`}>
+                      {statusLabel(selectedCertificate.status)}
+                    </span>
                   </div>
-                </section>
-              )}
-              <section className="bg-white border rounded">
-                <div className="px-4 py-3 border-b font-semibold">Step 5: Verify Installation on {selectedCertificate.domain}</div>
-                <div className="px-4 py-3 text-sm text-gray-700">
-                  Check whether your website is serving the issued SSL certificate correctly.
-                </div>
-                <div className="px-4 pb-4 text-sm">
-                  <div className="grid grid-cols-3 gap-y-2">
-                    <div className="font-medium">Status</div>
-                    <div className="col-span-2"><span className={`text-white text-xs px-2 py-1 rounded ${statusBadgeClass(selectedCertificate.status)}`}>{selectedCertificate.status}</span></div>
-                    <div className="font-medium">Issuer</div>
-                    <div className="col-span-2">Let&apos;s Encrypt</div>
-                    <div className="font-medium">Expires at</div>
-                    <div className="col-span-2">{formatDate(selectedCertificate.expiresAt)}</div>
-                  </div>
-                </div>
-              </section>
-              <section className="bg-white border rounded">
-                <div className="px-4 py-3 border-b font-semibold">Step 6: Make your website use HTTPS</div>
-                <div className="px-4 py-3 text-sm text-gray-700">
-                  <ol className="list-decimal pl-5 space-y-1">
-                    <li>Make sure all URLs use HTTPS and your address bar shows a secure lock.</li>
-                    <li>Force all visitors to use HTTPS with your server or application settings.</li>
-                  </ol>
-                </div>
-              </section>
-              <button onClick={() => deleteCertificate(selectedCertificate.id)} className="text-sm text-purple-700">Delete Certificate Order</button>
-            </div>
-            <aside className="bg-white border rounded p-4 text-sm h-fit">
-              <h2 className="font-semibold mb-3">Certificate Details</h2>
-              <div className="space-y-2 text-gray-700">
-                <p><span className="block text-xs text-gray-500">DOMAIN</span>{selectedCertificate.domain}</p>
-                <p><span className="block text-xs text-gray-500">CERTIFICATE PROVIDER</span>Let&apos;s Encrypt</p>
-                <p><span className="block text-xs text-gray-500">STATUS</span>{selectedCertificate.status}</p>
-                <p><span className="block text-xs text-gray-500">CREATED AT</span>{formatDate(selectedCertificate.createdAt)}</p>
-                <p><span className="block text-xs text-gray-500">ISSUE DATE</span>{formatDate(selectedCertificate.issuedAt)}</p>
-                <p><span className="block text-xs text-gray-500">EXPIRATION DATE</span>{formatDate(selectedCertificate.expiresAt)}</p>
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <label htmlFor="send-expiration-reminders" className="text-xs text-gray-500">SEND EXPIRATION REMINDERS</label>
-                  <input id="send-expiration-reminders" type="checkbox" defaultChecked />
+                  <div className="text-gray-400 font-medium">Issuer</div>
+                  <div className="col-span-2">Let&apos;s Encrypt</div>
+                  <div className="text-gray-400 font-medium">Expires at</div>
+                  <div className="col-span-2">{formatDate(selectedCertificate.expiresAt)}</div>
                 </div>
               </div>
-            </aside>
+            </section>
+            <section className="bg-white rounded-2xl border border-gray-100 shadow">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="font-bold text-gray-800">Step 6: Make Your Website Use HTTPS</h2>
+              </div>
+              <div className="px-5 py-4 text-sm text-gray-600">
+                <ol className="list-decimal pl-5 space-y-1.5">
+                  <li>Make sure all URLs use HTTPS and your address bar shows a secure lock.</li>
+                  <li>Force all visitors to use HTTPS with your server or application settings.</li>
+                </ol>
+              </div>
+            </section>
+            <button
+              onClick={() => deleteCertificate(selectedCertificate.id)}
+              className="text-sm text-red-500 hover:text-red-700 transition font-medium"
+            >
+              Delete Certificate Order
+            </button>
           </div>
+          <aside className="bg-white rounded-2xl border border-gray-100 shadow p-5 text-sm h-fit">
+            <h2 className="font-bold text-gray-800 mb-4">Certificate Details</h2>
+            <div className="space-y-3">
+              {[
+                { label: 'DOMAIN', value: selectedCertificate.domain },
+                { label: 'CERTIFICATE PROVIDER', value: "Let's Encrypt" },
+                { label: 'STATUS', value: statusLabel(selectedCertificate.status) },
+                { label: 'CREATED AT', value: formatDate(selectedCertificate.createdAt) },
+                { label: 'ISSUE DATE', value: formatDate(selectedCertificate.issuedAt) },
+                { label: 'EXPIRATION DATE', value: formatDate(selectedCertificate.expiresAt) }
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <span className="block text-xs text-gray-400 mb-0.5 tracking-wider font-semibold">{label}</span>
+                  <span className="text-gray-700">{value}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <label htmlFor="send-expiration-reminders" className="text-xs text-gray-400 tracking-wider font-semibold">
+                  EXPIRATION REMINDERS
+                </label>
+                <input id="send-expiration-reminders" type="checkbox" defaultChecked className="w-4 h-4 accent-indigo-600" />
+              </div>
+            </div>
+          </aside>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
+  const FILTER_LABELS = {
+    ALL: 'All',
+    ACTION_REQUIRED: 'Action Required',
+    ISSUED: 'Issued',
+    EXPIRED: 'Expired',
+    REVOKED: 'Revoked',
+    FAILED: 'Failed'
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-6xl mx-auto bg-white rounded-xl p-6 shadow">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">SSL Certificates</h1>
-          <div className="flex gap-2">
-            <button onClick={() => setCurrentView('new')} className="bg-blue-600 text-white px-4 py-2 rounded">➕ New SSL Certificate</button>
-            <button onClick={logout} className="text-sm px-3 py-1 border rounded">Logout</button>
+    <PageShell>
+      <div className="mb-1 text-xs text-gray-400 uppercase tracking-widest font-medium">Free SSL Certificates</div>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-xl font-bold text-gray-800">SSL Certificates</h1>
+      </div>
+      {success && (
+        <div className="mb-4 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm">
+          {success}
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
+          {error}
+        </div>
+      )}
+      <div className="bg-white rounded-2xl shadow border border-gray-100 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-100 gap-2">
+          <span className="text-sm font-bold text-gray-700">SSL Certificates</span>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(FILTER_LABELS).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                aria-pressed={filter === key}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                  filter === key
+                    ? 'text-indigo-600 bg-indigo-50'
+                    : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {['ALL', 'ACTION_REQUIRED', 'ISSUED', 'EXPIRED', 'REVOKED', 'FAILED'].map((status) => (
-            <button key={status} onClick={() => setFilter(status)} aria-pressed={filter === status} className={`px-3 py-1 rounded border ${filter === status ? 'bg-gray-900 text-white' : ''}`}>
-              {status.replace('_', ' ')}
-            </button>
-          ))}
-        </div>
-        {success && <p className="mb-3 text-green-700">{success}</p>}
-        {error && <p className="mb-3 text-red-600">{error}</p>}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left">
-                <th className="py-2">Domain</th>
-                <th className="py-2">Provider</th>
-                <th className="py-2">Status</th>
-                <th className="py-2">Issued</th>
-                <th className="py-2">Expired</th>
-                <th className="py-2">Action Required</th>
-                <th className="py-2">Failed</th>
-                <th className="py-2">Expires At</th>
-                <th className="py-2">Manage</th>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Domain</th>
+                <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Provider</th>
+                <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Expires At</th>
+                <th className="px-5 py-3 text-right text-xs font-bold text-gray-400 uppercase tracking-wider"></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-50">
               {filteredCertificates().map((item) => (
-                <tr key={item.id} className="border-b">
-                  <td className="py-2">{item.domain}</td>
-                  <td className="py-2">Let&apos;s Encrypt</td>
-                  <td className="py-2">{item.status}</td>
-                  <td className="py-2">{item.issuedAt ? 'Yes' : '-'}</td>
-                  <td className="py-2">{item.status === 'EXPIRED' ? 'Yes' : '-'}</td>
-                  <td className="py-2">{item.status === 'ACTION_REQUIRED' ? 'Yes' : '-'}</td>
-                  <td className="py-2">{item.status === 'FAILED' ? 'Yes' : '-'}</td>
-                  <td className="py-2">{formatDate(item.expiresAt)}</td>
-                  <td className="py-2">
+                <tr key={item.id} className="hover:bg-indigo-50/40 transition">
+                  <td className="px-5 py-3.5 text-indigo-600 font-semibold text-sm">{item.domain}</td>
+                  <td className="px-5 py-3.5 text-gray-500 text-sm">Let&apos;s Encrypt</td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusBadgeClass(item.status)}`}>
+                      {statusLabel(item.status)}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-gray-500 text-sm">{formatDate(item.expiresAt)}</td>
+                  <td className="px-5 py-3.5 text-right">
                     <button
-                      className="px-3 py-1 border rounded"
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow shadow-indigo-200"
                       onClick={() => {
                         if (item.status === 'ACTION_REQUIRED') {
                           setValidationData({
@@ -407,20 +661,38 @@ export default function Home() {
                         setCurrentView('detail');
                       }}
                     >
-                      Manage
+                      <GearIcon /> Manage
                     </button>
                   </td>
                 </tr>
               ))}
               {!filteredCertificates().length && (
                 <tr>
-                  <td colSpan="9" className="py-4 text-gray-500">No certificates found</td>
+                  <td colSpan="5" className="px-5 py-12 text-center text-gray-400 text-sm">
+                    <div className="inline-flex flex-col items-center gap-2">
+                      <svg className="w-10 h-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                      </svg>
+                      <span>No certificates found</span>
+                    </div>
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
+          <button
+            onClick={() => setCurrentView('new')}
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow shadow-indigo-200 text-sm"
+          >
+            <span className="text-base leading-none">+</span> New SSL Certificate
+          </button>
+          <span className="text-xs text-gray-400">
+            {filteredCertificates().length} certificate{filteredCertificates().length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
