@@ -65,6 +65,7 @@ async function safeJsonParse(res) {
 
 export default function Home() {
   const [token, setToken] = useState('');
+  const [mounted, setMounted] = useState(false);
   const [authView, setAuthView] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,6 +95,7 @@ export default function Home() {
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
     setToken(saved);
+    setMounted(true);
     const params = new URLSearchParams(window.location.search);
     const rt = params.get('reset');
     if (rt) {
@@ -348,6 +350,8 @@ export default function Home() {
     };
     return map[status] || status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
+
+  if (!mounted) return null;
 
   if (!token) {
     const isRegister = authView === 'register';
