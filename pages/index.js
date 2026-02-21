@@ -193,7 +193,7 @@ export default function Home() {
       }
       return setError(data.error || 'Failed to register');
     }
-    setValidationData({ domain: data.domain || domain, cname: data.cname, includeWww, wildcard, createdAt: new Date().toISOString(), ca, eabKeyId, eabHmacKey });
+    setValidationData({ id: data.id, domain: data.domain || domain, cname: data.cname, includeWww, wildcard, createdAt: new Date().toISOString(), ca, eabKeyId, eabHmacKey });
     setCurrentView('validate');
     await loadCertificates();
   }
@@ -782,6 +782,14 @@ export default function Home() {
                 Back
               </button>
             </div>
+            {validationData.id && (
+              <button
+                onClick={() => deleteCertificate(validationData.id)}
+                className="text-sm text-red-500 hover:text-red-700 transition font-medium"
+              >
+                Delete Certificate Order
+              </button>
+            )}
           </div>
           <aside className="w-full lg:w-64 lg:shrink-0 bg-white rounded-2xl border border-gray-100 shadow p-5 text-sm">
             <h2 className="font-bold text-gray-800 mb-4">Certificate Details</h2>
@@ -1009,6 +1017,7 @@ export default function Home() {
                       onClick={() => {
                         if (item.status === 'ACTION_REQUIRED') {
                           setValidationData({
+                            id: item.id,
                             domain: item.domain,
                             cname: `_acme-challenge.${item.domain} -> ${item.cnameTarget}`,
                             includeWww: true,
