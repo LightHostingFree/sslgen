@@ -22,6 +22,35 @@ const Spinner = () => (
   </svg>
 );
 
+const DeleteModal = ({ onClose, onConfirm }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <h2 id="delete-modal-title" className="font-bold text-gray-800">Delete SSL Certificate Order</h2>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="px-6 py-5 text-sm text-gray-600">
+        Deleting the certificate here will remove the certificate from the list in the client area.
+      </div>
+      <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+        <button onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition text-sm font-medium">
+          Close
+        </button>
+        <button onClick={onConfirm} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Delete Certificate Order
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const PageShell = ({ children, maxWidth = 'max-w-6xl', token, logout }) => (
   <div className="min-h-screen bg-indigo-50 flex flex-col">
     <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
@@ -91,6 +120,7 @@ export default function Home() {
   const [dnsOpen, setDnsOpen] = useState(true);
   const [dnsCheckResult, setDnsCheckResult] = useState(null);
   const [isDnsChecking, setIsDnsChecking] = useState(false);
+  const [deleteModalId, setDeleteModalId] = useState(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
@@ -193,7 +223,7 @@ export default function Home() {
       }
       return setError(data.error || 'Failed to register');
     }
-    setValidationData({ domain: data.domain || domain, cname: data.cname, includeWww, wildcard, createdAt: new Date().toISOString(), ca, eabKeyId, eabHmacKey });
+    setValidationData({ id: data.id, domain: data.domain || domain, cname: data.cname, includeWww, wildcard, createdAt: new Date().toISOString(), ca, eabKeyId, eabHmacKey });
     setCurrentView('validate');
     await loadCertificates();
   }
@@ -272,7 +302,12 @@ export default function Home() {
   }, [currentView, validationData?.domain, checkDns]);
 
   async function deleteCertificate(id) {
-    if (!confirm('Are you sure you want to delete this certificate order? This action cannot be undone.')) return;
+    setDeleteModalId(id);
+  }
+
+  async function confirmDeleteCertificate() {
+    const id = deleteModalId;
+    setDeleteModalId(null);
     setError('');
     const res = await fetch(`/api/certificates/${id}`, {
       method: 'DELETE',
@@ -782,6 +817,14 @@ export default function Home() {
                 Back
               </button>
             </div>
+            {validationData.id && (
+              <button
+                onClick={() => deleteCertificate(validationData.id)}
+                className="text-sm text-red-500 hover:text-red-700 transition font-medium"
+              >
+                Delete Certificate Order
+              </button>
+            )}
           </div>
           <aside className="w-full lg:w-64 lg:shrink-0 bg-white rounded-2xl border border-gray-100 shadow p-5 text-sm">
             <h2 className="font-bold text-gray-800 mb-4">Certificate Details</h2>
@@ -800,6 +843,9 @@ export default function Home() {
             </div>
           </aside>
         </div>
+        {deleteModalId && (
+          <DeleteModal onClose={() => setDeleteModalId(null)} onConfirm={confirmDeleteCertificate} />
+        )}
       </PageShell>
     );
   }
@@ -841,6 +887,40 @@ export default function Home() {
               </div>
             </section>
             )}
+            {selectedCertificate.status === 'EXPIRED' && (() => {
+              const daysExpired = Math.floor((Date.now() - new Date(selectedCertificate.expiresAt).getTime()) / (1000 * 60 * 60 * 24));
+              return (
+            <section className="bg-white rounded-2xl border border-gray-100 shadow">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="font-bold text-gray-800">Renew Certificate</h2>
+              </div>
+              <div className="px-5 py-4 space-y-4">
+                <p className="text-sm text-gray-700">
+                  This certificate expired {daysExpired} days ago. Renew it now to restore SSL protection to your website.
+                </p>
+                <button
+                  onClick={() => {
+                    setSelectedCertificate(null);
+                    setCertKeys(null);
+                    setCurrentView('list');
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition shadow shadow-indigo-200"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Create New Order
+                </button>
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  This certificate has expired and is no longer accepted by browsers.
+                </div>
+              </div>
+            </section>
+              );
+            })()}
             {certKeys && (
               <section className="bg-white rounded-2xl border border-gray-100 shadow">
                 <div className="px-5 py-4 border-b border-gray-100">
@@ -932,6 +1012,9 @@ export default function Home() {
             </div>
           </aside>
         </div>
+        {deleteModalId && (
+          <DeleteModal onClose={() => setDeleteModalId(null)} onConfirm={confirmDeleteCertificate} />
+        )}
       </PageShell>
     );
   }
@@ -1009,6 +1092,7 @@ export default function Home() {
                       onClick={() => {
                         if (item.status === 'ACTION_REQUIRED') {
                           setValidationData({
+                            id: item.id,
                             domain: item.domain,
                             cname: `_acme-challenge.${item.domain} -> ${item.cnameTarget}`,
                             includeWww: true,
@@ -1055,6 +1139,9 @@ export default function Home() {
           </span>
         </div>
       </div>
+      {deleteModalId && (
+        <DeleteModal onClose={() => setDeleteModalId(null)} onConfirm={confirmDeleteCertificate} />
+      )}
     </PageShell>
   );
 }

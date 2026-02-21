@@ -18,7 +18,7 @@ export default async function handler(req,res){
 
     if(existing){
       const cname = `_acme-challenge.${normalizedDomain} -> ${existing.cnameTarget}`;
-      return res.json({ domain: normalizedDomain, cname, status: existing.status });
+      return res.json({ id: existing.id, domain: normalizedDomain, cname, status: existing.status });
     }
 
     // Generate a unique subdomain in the Cloudflare validation zone for this domain.
@@ -26,7 +26,7 @@ export default async function handler(req,res){
     // _acme-challenge record at, allowing the system to set TXT records there
     // during ACME DNS-01 challenges without touching the user's own DNS zone.
     const cnameTarget = `${randomUUID()}.${CLOUDFLARE_VALIDATION_DOMAIN}`;
-    await prisma.certificate.create({
+    const created = await prisma.certificate.create({
       data: {
         userId: authUser.userId,
         domain: normalizedDomain,
@@ -35,7 +35,7 @@ export default async function handler(req,res){
       }
     });
     const cname = `_acme-challenge.${normalizedDomain} -> ${cnameTarget}`;
-    return res.json({ domain: normalizedDomain, cname, status: 'ACTION_REQUIRED' });
+    return res.json({ id: created.id, domain: normalizedDomain, cname, status: 'ACTION_REQUIRED' });
   }catch(e){
     Sentry.captureException(e);
     const errorData = e.response?.data;
