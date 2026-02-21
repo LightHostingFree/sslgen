@@ -279,6 +279,17 @@ export default function Home() {
     await loadCertificates();
   }
 
+  async function toggleReminders(id, enabled) {
+    const res = await fetch(`/api/certificates/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remindersEnabled: enabled })
+    });
+    const data = await safeJsonParse(res);
+    if (!res.ok) return setError(data.error || 'Failed to update reminder setting');
+    setSelectedCertificate((prev) => ({ ...prev, remindersEnabled: enabled }));
+  }
+
   function logout() {
     window.localStorage.removeItem('token');
     setToken('');
@@ -901,7 +912,13 @@ export default function Home() {
                 <label htmlFor="send-expiration-reminders" className="text-xs text-gray-400 tracking-wider font-semibold">
                   EXPIRATION REMINDERS
                 </label>
-                <input id="send-expiration-reminders" type="checkbox" defaultChecked className="w-4 h-4 accent-indigo-600" />
+                <input
+                  id="send-expiration-reminders"
+                  type="checkbox"
+                  checked={selectedCertificate.remindersEnabled !== false}
+                  onChange={(e) => toggleReminders(selectedCertificate.id, e.target.checked)}
+                  className="w-4 h-4 accent-indigo-600"
+                />
               </div>
             </div>
           </aside>

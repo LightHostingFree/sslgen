@@ -23,6 +23,7 @@ export default async function handler(req, res) {
     const expiring = await prisma.certificate.findMany({
       where: {
         status: 'ISSUED',
+        remindersEnabled: true,
         expiresAt: { not: null, gt: new Date(), lt: thresholdDate }
       },
       include: { user: { select: { email: true } } }
