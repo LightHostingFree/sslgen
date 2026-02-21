@@ -152,6 +152,11 @@ export default function Home() {
   }
 
   async function loadCertificates(activeToken = token, statusFilter = filter) {
+    // Guard against invalid token to prevent fetch failures
+    if (!activeToken) {
+      return;
+    }
+    
     const query = statusFilter === 'ALL' ? '' : `?status=${encodeURIComponent(statusFilter)}`;
     const res = await fetch(`/api/certificates${query}`, {
       headers: { Authorization: `Bearer ${activeToken}` }
