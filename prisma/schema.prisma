@@ -36,6 +36,7 @@ model Certificate {
   expiresAt DateTime?
   certificatePem String?
   privateKeyPem  String?
+  remindersEnabled Boolean @default(true)
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

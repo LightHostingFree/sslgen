@@ -39,6 +39,24 @@ export default async function handler(req, res) {
     });
   }
 
+  if (req.method === 'PATCH') {
+    const certificate = await prisma.certificate.findFirst({
+      where: { id, userId: authUser.userId }
+    });
+    if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
+
+    const { remindersEnabled } = req.body;
+    if (typeof remindersEnabled !== 'boolean') {
+      return res.status(400).json({ error: 'remindersEnabled must be a boolean' });
+    }
+
+    const updated = await prisma.certificate.update({
+      where: { id },
+      data: { remindersEnabled }
+    });
+    return res.json({ success: true, remindersEnabled: updated.remindersEnabled });
+  }
+
   if (req.method === 'DELETE') {
     const certificate = await prisma.certificate.findFirst({
       where: { id, userId: authUser.userId }

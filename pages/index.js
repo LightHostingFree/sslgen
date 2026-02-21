@@ -65,6 +65,7 @@ async function safeJsonParse(res) {
 
 export default function Home() {
   const [token, setToken] = useState('');
+  const [mounted, setMounted] = useState(false);
   const [authView, setAuthView] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,6 +95,7 @@ export default function Home() {
   useEffect(() => {
     const saved = window.localStorage.getItem('token') || '';
     setToken(saved);
+    setMounted(true);
     const params = new URLSearchParams(window.location.search);
     const rt = params.get('reset');
     if (rt) {
@@ -279,6 +281,17 @@ export default function Home() {
     await loadCertificates();
   }
 
+  async function toggleReminders(id, enabled) {
+    const res = await fetch(`/api/certificates/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remindersEnabled: enabled })
+    });
+    const data = await safeJsonParse(res);
+    if (!res.ok) return setError(data.error || 'Failed to update reminder setting');
+    setSelectedCertificate((prev) => ({ ...prev, remindersEnabled: enabled }));
+  }
+
   function logout() {
     window.localStorage.removeItem('token');
     setToken('');
@@ -337,6 +350,8 @@ export default function Home() {
     };
     return map[status] || status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
+
+  if (!mounted) return null;
 
   if (!token) {
     const isRegister = authView === 'register';
@@ -901,7 +916,13 @@ export default function Home() {
                 <label htmlFor="send-expiration-reminders" className="text-xs text-gray-400 tracking-wider font-semibold">
                   EXPIRATION REMINDERS
                 </label>
-                <input id="send-expiration-reminders" type="checkbox" defaultChecked className="w-4 h-4 accent-indigo-600" />
+                <input
+                  id="send-expiration-reminders"
+                  type="checkbox"
+                  checked={selectedCertificate.remindersEnabled !== false}
+                  onChange={(e) => toggleReminders(selectedCertificate.id, e.target.checked)}
+                  className="w-4 h-4 accent-indigo-600"
+                />
               </div>
             </div>
           </aside>
